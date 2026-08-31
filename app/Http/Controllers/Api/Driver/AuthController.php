@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Api\Driver;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -10,28 +10,6 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
-        ]);
-
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
-
-        $token = $user->createToken('mobile-app')->plainTextToken;
-
-        return response()->json([
-            'user' => $user,
-            'token' => $token,
-        ], 201);
-    }
-
     public function login(Request $request)
     {
         $request->validate([
@@ -47,10 +25,17 @@ class AuthController extends Controller
             ]);
         }
 
-        $token = $user->createToken('mobile-app')->plainTextToken;
+        if (! $user->isDriver()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Access denied. Account is not a Driver account.',
+            ], 403);
+        }
+
+        $token = $user->createToken('driver-app')->plainTextToken;
 
         return response()->json([
-            'user' => $user,
+            'user' => $user->load('metas'),
             'token' => $token,
         ]);
     }
@@ -64,6 +49,6 @@ class AuthController extends Controller
 
     public function user(Request $request)
     {
-        return response()->json($request->user());
+        return response()->json($request->user()->load('metas'));
     }
 }

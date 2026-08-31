@@ -18,10 +18,13 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Super Admin',
                 'password' => bcrypt('password'),
+                'role' => 'admin',
             ]
         );
 
-        // Optional: create some fake users
-        // User::factory(10)->create();
+        // Ensure admin role is set if user already existed
+        if ($admin->role !== 'admin') {
+            $admin->update(['role' => 'admin']);
+        }
     }
 }

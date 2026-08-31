@@ -23,6 +23,10 @@ class User extends Authenticatable
         'email',
         'password',
         'avatar',
+        'profile_image',
+        'role',
+        'dispatcher_id',
+        'phone_number',
     ];
 
     /**
@@ -49,12 +53,90 @@ class User extends Authenticatable
     }
 
     /**
+     * Role checks
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isDispatcher(): bool
+    {
+        return $this->role === 'dispatcher';
+    }
+
+    public function isDriver(): bool
+    {
+        return $this->role === 'driver';
+    }
+
+    /**
+     * Relationships
+     */
+    public function dispatcher()
+    {
+        return $this->belongsTo(User::class, 'dispatcher_id');
+    }
+
+    public function drivers()
+    {
+        return $this->hasMany(User::class, 'dispatcher_id');
+    }
+
+    public function vehicles()
+    {
+        return $this->hasMany(Vehicle::class, 'dispatcher_id');
+    }
+
+    public function clients()
+    {
+        return $this->hasMany(Client::class, 'dispatcher_id');
+    }
+
+    public function metas()
+    {
+        return $this->hasMany(UserMeta::class);
+    }
+
+    /**
+     * Meta Helpers
+     */
+    public function getMeta(string $key, mixed $default = null): mixed
+    {
+        $meta = $this->metas->where('meta_key', $key)->first();
+        if ($meta) {
+            $value = json_decode($meta->meta_value, true);
+            return json_last_error() === JSON_ERROR_NONE ? $value : $meta->meta_value;
+        }
+
+        return $default;
+    }
+
+    public function setMeta(string $key, mixed $value): void
+    {
+        $stringValue = is_array($value) || is_object($value) ? json_encode($value) : (string) $value;
+
+        $this->metas()->updateOrCreate(
+            ['meta_key' => $key],
+            ['meta_value' => $stringValue]
+        );
+    }
+
+    public function syncMetas(array $metas): void
+    {
+        foreach ($metas as $key => $value) {
+            $this->setMeta($key, $value);
+        }
+    }
+
+    /**
      * Get the user's avatar URL.
      */
     public function getAvatarUrlAttribute()
     {
-        if ($this->avatar) {
-            return asset('storage/' . $this->avatar);
+        $image = $this->profile_image ?? $this->avatar;
+        if ($image) {
+            return asset('storage/' . $image);
         }
 
         return asset('assets/img/avatars/1.png');

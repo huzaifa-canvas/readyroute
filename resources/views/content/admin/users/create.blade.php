@@ -1,10 +1,9 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'Add New User - Apps')
+@section('title', 'Add New User - Admin')
 
 @section('content')
 
-{{-- Success/Error Messages --}}
 @if(session('success'))
   <div class="alert alert-success alert-dismissible mb-4" role="alert">
     {{ session('success') }}
@@ -27,7 +26,7 @@
         <h5 class="card-title mb-0">Add New User</h5>
       </div>
       <div class="card-body">
-        <form method="POST" action="{{ route('app-user-store') }}">
+        <form method="POST" action="{{ route('admin.user.store') }}" enctype="multipart/form-data">
           @csrf
           <div class="row g-4">
             <div class="col-md-6">
@@ -37,6 +36,25 @@
             <div class="col-md-6">
               <label class="form-label" for="email">Email</label>
               <input type="email" id="email" name="email" class="form-control" value="{{ old('email') }}" required />
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="role">Role</label>
+              <select id="role" name="role" class="form-select" required>
+                <option value="dispatcher" {{ old('role') === 'dispatcher' ? 'selected' : '' }}>Dispatcher (Default)</option>
+                <option value="admin" {{ old('role') === 'admin' ? 'selected' : '' }}>Admin</option>
+                <option value="driver" {{ old('role') === 'driver' ? 'selected' : '' }}>Driver</option>
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="phone_number">Phone Number</label>
+              <input type="text" id="phone_number" name="phone_number" class="form-control" value="{{ old('phone_number') }}" placeholder="+1 234 567 890" />
+            </div>
+
+            <div class="col-md-12">
+              <label class="form-label" for="profile_image">Profile Image</label>
+              <input type="file" id="profile_image" name="profile_image" class="form-control" accept="image/*" />
             </div>
 
             <div class="col-md-6">
@@ -50,7 +68,7 @@
           </div>
           <div class="mt-6">
             <button type="submit" class="btn btn-primary me-3">Create User</button>
-            <a href="{{ route('app-user-list') }}" class="btn btn-label-secondary">Cancel</a>
+            <a href="{{ route('admin.user.list') }}" class="btn btn-label-secondary">Cancel</a>
           </div>
         </form>
       </div>

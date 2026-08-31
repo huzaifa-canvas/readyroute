@@ -1,6 +1,6 @@
 @extends('layouts/layoutMaster')
 
-@section('title', 'Dashboard')
+@section('title', 'Admin Dashboard')
 
 @section('content')
 <h4 class="py-3 mb-4">
@@ -11,14 +11,14 @@
   <div class="col-12 mb-4">
     <div class="card">
       <div class="card-body">
-        <h4 class="card-title">Welcome to the Dashboard!</h4>
+        <h4 class="card-title">Welcome to the Admin Dashboard!</h4>
         <p class="card-text">
           This is your central hub for managing users. Use the sidebar to navigate to the user management section.
         </p>
       </div>
     </div>
   </div>
-  
+
   <div class="col-sm-6 col-lg-3 mb-4">
     <div class="card card-border-shadow-primary">
       <div class="card-body">

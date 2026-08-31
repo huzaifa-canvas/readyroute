@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\LocaleMiddleware;
 use App\Http\Middleware\ForceJsonResponse;
+use App\Http\Middleware\RoleMiddleware;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 
@@ -18,16 +19,20 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(LocaleMiddleware::class);
         $middleware->api(ForceJsonResponse::class);
-        
+
+        $middleware->alias([
+            'role' => RoleMiddleware::class,
+        ]);
+
         $middleware->redirectGuestsTo(function (Request $request) {
             if ($request->is('admin*')) {
-                return route('admin.login');
+                return route('login');
             }
             return route('login');
         });
     })
     ->withExceptions(function (Exceptions $exceptions) {
-         $exceptions->render(function (AuthenticationException $e, $request) {
+        $exceptions->render(function (AuthenticationException $e, $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
                 return response()->json([
                     'status' => false,

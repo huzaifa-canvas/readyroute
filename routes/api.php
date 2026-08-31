@@ -1,21 +1,24 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\AuthController;
 
+// ═══════════════════════════════════════════════════
+// API FALLBACK
+// ═══════════════════════════════════════════════════
 
-Route::fallback(function(){
+Route::fallback(function () {
     return response()->json([
         'status' => false,
         'message' => 'API route not found.',
     ], 404);
 });
 
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+// ═══════════════════════════════════════════════════
+// ROLE-BASED API ROUTES (loaded from separate files)
+// ═══════════════════════════════════════════════════
 
-Route::middleware(['auth:sanctum'])->group(function () {
-    Route::get('/user', [AuthController::class, 'user']);
-    Route::post('/logout', [AuthController::class, 'logout']);
-});
+// Dispatcher Mobile App API Routes
+require __DIR__ . '/api/dispatcher.php';
+
+// Driver Mobile App API Routes
+require __DIR__ . '/api/driver.php';

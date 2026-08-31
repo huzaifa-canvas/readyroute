@@ -1,11 +1,124 @@
 @php
 use Illuminate\Support\Facades\Route;
 $configData = Helper::appClasses();
+$user = auth()->user();
+
+// Dynamic role-based menu items
+if ($user && $user->isAdmin()) {
+    $menuItems = [
+        (object)[
+            'url' => 'admin',
+            'name' => 'Dashboard',
+            'icon' => 'menu-icon icon-base ti tabler-dashboard',
+            'slug' => 'admin.dashboard'
+        ],
+        (object)[
+            'url' => 'admin/user/list',
+            'name' => 'Users',
+            'icon' => 'menu-icon icon-base ti tabler-users',
+            'slug' => 'admin.user'
+        ]
+    ];
+} elseif ($user && $user->isDispatcher()) {
+    $menuItems = [
+        (object)[
+            'url' => 'dispatcher',
+            'name' => 'Dispatch Board',
+            'icon' => 'menu-icon icon-base ti tabler-map-2',
+            'slug' => 'dispatcher.dashboard'
+        ],
+        (object)[
+            'name' => 'Trip Management',
+            'icon' => 'menu-icon icon-base ti tabler-layout-grid',
+            'slug' => 'dispatcher.trip',
+            'submenu' => [
+                (object)[
+                    'url' => 'dispatcher/trip/list',
+                    'name' => 'Trip List',
+                    'icon' => 'menu-icon icon-base ti tabler-file-text',
+                    'slug' => 'dispatcher.trip.list'
+                ],
+                (object)[
+                    'url' => 'dispatcher/trip/calendar',
+                    'name' => 'Calendar View',
+                    'icon' => 'menu-icon icon-base ti tabler-calendar',
+                    'slug' => 'dispatcher.trip.calendar'
+                ],
+                (object)[
+                    'url' => 'dispatcher/trip/create',
+                    'name' => 'Create Trip',
+                    'icon' => 'menu-icon icon-base ti tabler-plus',
+                    'slug' => 'dispatcher.trip.create'
+                ],
+                (object)[
+                    'url' => 'dispatcher/trip/details',
+                    'name' => 'Trip Details',
+                    'icon' => 'menu-icon icon-base ti tabler-search',
+                    'slug' => 'dispatcher.trip.details'
+                ],
+                (object)[
+                    'url' => 'dispatcher/trip/edit',
+                    'name' => 'Edit & Assign',
+                    'icon' => 'menu-icon icon-base ti tabler-pencil',
+                    'slug' => 'dispatcher.trip.edit'
+                ],
+            ]
+        ],
+        (object)[
+            'url' => 'dispatcher/live-map',
+            'name' => 'Live Map Operations',
+            'icon' => 'menu-icon icon-base ti tabler-clipboard-data',
+            'slug' => 'dispatcher.live-map'
+        ],
+        (object)[
+            'url' => 'dispatcher/auto-dispatch',
+            'name' => 'Smart Auto-Dispatch',
+            'icon' => 'menu-icon icon-base ti tabler-route-2',
+            'slug' => 'dispatcher.auto-dispatch'
+        ],
+        (object)[
+            'url' => 'dispatcher/fleet',
+            'name' => 'Fleet Management',
+            'icon' => 'menu-icon icon-base ti tabler-chart-bar',
+            'slug' => 'dispatcher.fleet.index'
+        ],
+        (object)[
+            'url' => 'dispatcher/driver/list',
+            'name' => 'Driver Management',
+            'icon' => 'menu-icon icon-base ti tabler-users',
+            'slug' => 'dispatcher.driver'
+        ],
+        (object)[
+            'url' => 'dispatcher/client',
+            'name' => 'Client Profiles',
+            'icon' => 'menu-icon icon-base ti tabler-user-square',
+            'slug' => 'dispatcher.client.index'
+        ],
+        (object)[
+            'url' => 'dispatcher/compliance',
+            'name' => 'Compliance Center',
+            'icon' => 'menu-icon icon-base ti tabler-shield-check',
+            'slug' => 'dispatcher.compliance'
+        ],
+        (object)[
+            'url' => 'dispatcher/subscription',
+            'name' => 'My Subscription',
+            'icon' => 'menu-icon icon-base ti tabler-credit-card',
+            'slug' => 'dispatcher.subscription'
+        ],
+        (object)[
+            'url' => 'dispatcher/settings',
+            'name' => 'Settings & Reports',
+            'icon' => 'menu-icon icon-base ti tabler-settings',
+            'slug' => 'dispatcher.settings'
+        ],
+    ];
+} else {
+    $menuItems = isset($menuData[0]->menu) ? $menuData[0]->menu : [];
+}
 @endphp
 
-<aside id="layout-menu" class="layout-menu menu-vertical menu" @foreach ($configData['menuAttributes'] as $attribute=>
-  $value)
-  {{ $attribute }}="{{ $value }}" @endforeach>
+<aside id="layout-menu" class="layout-menu menu-vertical menu" @foreach ($configData['menuAttributes'] as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach>
 
   <!-- ! Hide app brand if navbar-full -->
   @if (!isset($navbarFull))
@@ -25,9 +138,7 @@ $configData = Helper::appClasses();
   <div class="menu-inner-shadow"></div>
 
   <ul class="menu-inner py-1">
-    @foreach ($menuData[0]->menu as $menu)
-
-    {{-- adding active and open class if child is active --}}
+    @foreach ($menuItems as $menu)
 
     {{-- menu headers --}}
     @if (isset($menu->menuHeader))
@@ -53,8 +164,11 @@ $configData = Helper::appClasses();
     }
 
     if (isset($menu->submenu)) {
-        if ($activeClass === 'active') {
-            $activeClass = 'active open';
+        foreach ($menu->submenu as $sub) {
+            if ($currentRouteName === $sub->slug || (is_string($sub->slug) && str_starts_with($currentRouteName ?? '', $sub->slug))) {
+                $activeClass = 'active open';
+                break;
+            }
         }
     }
     @endphp
@@ -62,8 +176,7 @@ $configData = Helper::appClasses();
     {{-- main menu --}}
     <li class="menu-item {{ $activeClass }}">
       <a href="{{ isset($menu->url) ? url($menu->url) : 'javascript:void(0);' }}"
-        class="{{ isset($menu->submenu) ? 'menu-link menu-toggle' : 'menu-link' }}" @if (isset($menu->target) and
-        !empty($menu->target)) target="_blank" @endif>
+        class="{{ isset($menu->submenu) ? 'menu-link menu-toggle' : 'menu-link' }}" @if (isset($menu->target) and !empty($menu->target)) target="_blank" @endif>
         @isset($menu->icon)
         <i class="{{ $menu->icon }}"></i>
         @endisset

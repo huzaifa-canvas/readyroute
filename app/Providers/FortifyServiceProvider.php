@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Contracts\LoginResponse;
+use Illuminate\Validation\ValidationException;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -20,7 +22,25 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(LoginResponse::class, function () {
+            return new class implements LoginResponse {
+                public function toResponse($request)
+                {
+                    $user = auth()->user();
+                    if ($user->isAdmin()) {
+                        return redirect()->intended('/admin');
+                    }
+                    if ($user->isDispatcher()) {
+                        return redirect()->intended('/dispatcher');
+                    }
+                    // Drivers cannot login to web panel
+                    auth()->logout();
+                    throw ValidationException::withMessages([
+                        'email' => ['Drivers can only log in using the mobile app.'],
+                    ]);
+                }
+            };
+        });
     }
 
     /**
@@ -49,11 +69,16 @@ class FortifyServiceProvider extends ServiceProvider
             return view('content.authentications.auth-reset-password-basic', ['request' => $request]);
         });
 
-        // Redirect after login based on role
+        // Authenticate using check
         Fortify::authenticateUsing(function (Request $request) {
             $user = \App\Models\User::where('email', $request->email)->first();
 
             if ($user && \Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
+                if ($user->isDriver()) {
+                    throw ValidationException::withMessages([
+                        'email' => ['Drivers can only log in using the mobile app.'],
+                    ]);
+                }
                 return $user;
             }
         });
@@ -69,5 +94,3 @@ class FortifyServiceProvider extends ServiceProvider
         });
     }
 }
-
-
