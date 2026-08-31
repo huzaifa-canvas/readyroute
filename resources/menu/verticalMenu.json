@@ -1,0 +1,16 @@
+{
+  "menu": [
+    {
+      "url": "/admin",
+      "name": "Dashboard",
+      "icon": "menu-icon icon-base ti tabler-dashboard",
+      "slug": "pages-home"
+    },
+    {
+      "name": "Users",
+      "icon": "menu-icon icon-base ti tabler-users",
+      "slug": "app-user",
+      "url": "/admin/user/list"
+    }
+  ]
+}
