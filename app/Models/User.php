@@ -93,6 +93,16 @@ class User extends Authenticatable
         return $this->hasMany(Client::class, 'dispatcher_id');
     }
 
+    public function trips()
+    {
+        return $this->hasMany(Trip::class, 'dispatcher_id');
+    }
+
+    public function assignedTrips()
+    {
+        return $this->hasMany(Trip::class, 'driver_id');
+    }
+
     public function metas()
     {
         return $this->hasMany(UserMeta::class);

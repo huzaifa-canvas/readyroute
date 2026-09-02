@@ -21,12 +21,16 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin'])->grou
     Route::put('driver/update/{id}', [DriverController::class, 'update'])->name('dispatcher.driver.update');
     Route::delete('driver/delete/{id}', [DriverController::class, 'destroy'])->name('dispatcher.driver.delete');
 
-    // Placeholder Routes for Menu Items
-    Route::view('trip/list', 'content.dispatcher.coming-soon')->name('dispatcher.trip.list');
-    Route::view('trip/calendar', 'content.dispatcher.coming-soon')->name('dispatcher.trip.calendar');
-    Route::view('trip/create', 'content.dispatcher.coming-soon')->name('dispatcher.trip.create');
-    Route::view('trip/details', 'content.dispatcher.coming-soon')->name('dispatcher.trip.details');
-    Route::view('trip/edit', 'content.dispatcher.coming-soon')->name('dispatcher.trip.edit');
+    // Trip Management
+    Route::get('trip/list', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'index'])->name('dispatcher.trip.list');
+    Route::get('trip/create', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'create'])->name('dispatcher.trip.create');
+    Route::post('trip/store', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'store'])->name('dispatcher.trip.store');
+    Route::get('trip/calendar', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'calendar'])->name('dispatcher.trip.calendar');
+    Route::get('trip/events', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'events'])->name('dispatcher.trip.events');
+    Route::get('trip/details/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'show'])->name('dispatcher.trip.details');
+    Route::get('trip/edit/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'edit'])->name('dispatcher.trip.edit');
+    Route::put('trip/update/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'update'])->name('dispatcher.trip.update');
+    Route::delete('trip/delete/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'destroy'])->name('dispatcher.trip.delete');
     Route::view('live-map', 'content.dispatcher.coming-soon')->name('dispatcher.live-map');
     Route::view('auto-dispatch', 'content.dispatcher.coming-soon')->name('dispatcher.auto-dispatch');
     // Fleet Management (Vehicle Management System)

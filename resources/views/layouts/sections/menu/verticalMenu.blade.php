@@ -36,7 +36,7 @@ if ($user && $user->isAdmin()) {
                     'url' => 'dispatcher/trip/list',
                     'name' => 'Trip List',
                     'icon' => 'menu-icon icon-base ti tabler-file-text',
-                    'slug' => 'dispatcher.trip.list'
+                    'slug' => ['dispatcher.trip.list', 'dispatcher.trip.details', 'dispatcher.trip.edit']
                 ],
                 (object)[
                     'url' => 'dispatcher/trip/calendar',
@@ -49,18 +49,6 @@ if ($user && $user->isAdmin()) {
                     'name' => 'Create Trip',
                     'icon' => 'menu-icon icon-base ti tabler-plus',
                     'slug' => 'dispatcher.trip.create'
-                ],
-                (object)[
-                    'url' => 'dispatcher/trip/details',
-                    'name' => 'Trip Details',
-                    'icon' => 'menu-icon icon-base ti tabler-search',
-                    'slug' => 'dispatcher.trip.details'
-                ],
-                (object)[
-                    'url' => 'dispatcher/trip/edit',
-                    'name' => 'Edit & Assign',
-                    'icon' => 'menu-icon icon-base ti tabler-pencil',
-                    'slug' => 'dispatcher.trip.edit'
                 ],
             ]
         ],
@@ -168,7 +156,17 @@ if ($user && $user->isAdmin()) {
             if ($currentRouteName === $sub->slug || (is_string($sub->slug) && str_starts_with($currentRouteName ?? '', $sub->slug))) {
                 $activeClass = 'active open';
                 break;
+            } elseif (is_array($sub->slug)) {
+                foreach ($sub->slug as $subSlug) {
+                    if ($currentRouteName === $subSlug || str_starts_with($currentRouteName ?? '', $subSlug)) {
+                        $activeClass = 'active open';
+                        break 2;
+                    }
+                }
             }
+        }
+        if (!$activeClass && is_string($menu->slug) && str_starts_with($currentRouteName ?? '', $menu->slug)) {
+            $activeClass = 'active open';
         }
     }
     @endphp

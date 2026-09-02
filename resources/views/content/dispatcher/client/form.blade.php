@@ -2,6 +2,14 @@
 
 @section('title', isset($client) ? 'Edit Client Profile' : 'Add Client')
 
+@section('vendor-style')
+<link rel="stylesheet" href="{{ asset('assets/vendor/libs/flatpickr/flatpickr.css') }}" />
+@endsection
+
+@section('vendor-script')
+<script src="{{ asset('assets/vendor/libs/flatpickr/flatpickr.js') }}"></script>
+@endsection
+
 @section('content')
 
 @if(session('success'))
@@ -47,7 +55,7 @@
             </div>
             <div class="col-md-12">
               <label class="form-label" for="dob">Date Of Birth</label>
-              <input type="date" id="dob" name="dob" class="form-control" placeholder="Enter Date Of Birth" value="{{ old('dob', isset($client) && $client->dob ? $client->dob->format('Y-m-d') : '') }}" />
+              <input type="text" id="dob" name="dob" class="form-control flatpickr-date" placeholder="YYYY-MM-DD" value="{{ old('dob', isset($client) && $client->dob ? $client->dob->format('Y-m-d') : '') }}" />
             </div>
             <div class="col-md-12">
               <label class="form-label" for="phone_number">Phone Number</label>
@@ -193,4 +201,17 @@
     </form>
   </div>
 </div>
+@endsection
+
+@section('page-script')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof flatpickr !== 'undefined') {
+    flatpickr('#dob', {
+      dateFormat: 'Y-m-d',
+      maxDate: 'today'
+    });
+  }
+});
+</script>
 @endsection
