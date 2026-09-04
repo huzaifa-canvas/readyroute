@@ -4,7 +4,7 @@
 @endphp
 
 <span class="text-primary">
-  <img style="width: 40px; height: 40px;" src="http://readyroute.test/public/assets/auth/icon.png">
+  <img style="width: 40px; height: 40px;" src="{{ asset('assets/auth/icon.png') }}">
   <svg class="d-none" width="{{ $width }}" height="{{ $height }}" viewBox="0 0 32 22" fill="none"
     xmlns="http://www.w3.org/2000/svg">
     <path fill-rule="evenodd" clip-rule="evenodd"
