@@ -1,3 +1,4 @@
+{{-- NOT IN USE CURRENTLY --}}
 @php
 $customizerHidden = 'customizer-hide';
 @endphp

@@ -4,7 +4,8 @@
 @endphp
 
 <span class="text-primary">
-  <svg width="{{ $width }}" height="{{ $height }}" viewBox="0 0 32 22" fill="none"
+  <img style="width: 40px; height: 40px;" src="http://readyroute.test/public/assets/auth/icon.png">
+  <svg class="d-none" width="{{ $width }}" height="{{ $height }}" viewBox="0 0 32 22" fill="none"
     xmlns="http://www.w3.org/2000/svg">
     <path fill-rule="evenodd" clip-rule="evenodd"
       d="M0.00172773 0V6.85398C0.00172773 6.85398 -0.133178 9.01207 1.98092 10.8388L13.6912 21.9964L19.7809 21.9181L18.8042 9.88248L16.4951 7.17289L9.23799 0H0.00172773Z"

@@ -108,8 +108,7 @@
           <div class="dropdown-divider my-1 mx-n2"></div>
         </li>
         <li>
-          <a class="dropdown-item"
-            href="javascript:void(0);">
+          <a class="dropdown-item" href="{{ route('dispatcher.profile.index') }}">
             <i class="icon-base ti tabler-user me-3 icon-md"></i><span class="align-middle">My Profile</span> </a>
         </li>
 

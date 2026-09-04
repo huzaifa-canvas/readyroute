@@ -100,21 +100,6 @@
         </div>
       </div>
 
-      {{-- Vehicle Assignment --}}
-      <div class="card mb-4">
-        <div class="card-header">
-          <h5 class="card-title mb-0 fw-semibold">Vehicle Assignment</h5>
-        </div>
-        <div class="card-body">
-          <div class="row g-4">
-            <div class="col-md-12">
-              <label class="form-label" for="assigned_vehicle">Assign Vehicle</label>
-              <input type="text" id="assigned_vehicle" name="assigned_vehicle" class="form-control" placeholder="Enter Vehicle ID / Name" value="{{ old('assigned_vehicle', $driver->getMeta('assigned_vehicle')) }}" />
-            </div>
-          </div>
-        </div>
-      </div>
-
       {{-- Availability --}}
       <div class="card mb-4">
         <div class="card-header">
@@ -125,25 +110,25 @@
             <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
               <span>Monday – Friday</span>
               <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" id="availability_mon_fri" name="availability_mon_fri" value="1" {{ old('availability_mon_fri', $driver->getMeta('availability_mon_fri', '1')) === '1' ? 'checked' : '' }} />
+                <input class="form-check-input" type="checkbox" id="availability_mon_fri" name="availability_mon_fri" value="1" {{ old('availability_mon_fri', (string)$driver->getMeta('availability_mon_fri', '1')) === '1' ? 'checked' : '' }} />
               </div>
             </li>
             <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
               <span>Saturday</span>
               <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" id="availability_sat" name="availability_sat" value="1" {{ old('availability_sat', $driver->getMeta('availability_sat', '0')) === '1' ? 'checked' : '' }} />
+                <input class="form-check-input" type="checkbox" id="availability_sat" name="availability_sat" value="1" {{ old('availability_sat', (string)$driver->getMeta('availability_sat', '0')) === '1' ? 'checked' : '' }} />
               </div>
             </li>
             <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
               <span>Sunday</span>
               <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" id="availability_sun" name="availability_sun" value="1" {{ old('availability_sun', $driver->getMeta('availability_sun', '0')) === '1' ? 'checked' : '' }} />
+                <input class="form-check-input" type="checkbox" id="availability_sun" name="availability_sun" value="1" {{ old('availability_sun', (string)$driver->getMeta('availability_sun', '0')) === '1' ? 'checked' : '' }} />
               </div>
             </li>
             <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
               <span>On-Call / Emergency</span>
               <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" id="availability_on_call" name="availability_on_call" value="1" {{ old('availability_on_call', $driver->getMeta('availability_on_call', '1')) === '1' ? 'checked' : '' }} />
+                <input class="form-check-input" type="checkbox" id="availability_on_call" name="availability_on_call" value="1" {{ old('availability_on_call', (string)$driver->getMeta('availability_on_call', '1')) === '1' ? 'checked' : '' }} />
               </div>
             </li>
           </ul>

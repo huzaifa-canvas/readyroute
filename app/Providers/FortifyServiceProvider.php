@@ -54,19 +54,19 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
 
         Fortify::loginView(function () {
-            return view('content.authentications.auth-login-basic');
+            return view('content.authentications.auth-login-cover');
         });
 
         Fortify::registerView(function () {
-            return view('content.authentications.auth-register-basic');
+            return view('content.authentications.auth-register-cover');
         });
 
         Fortify::requestPasswordResetLinkView(function () {
-            return view('content.authentications.auth-forgot-password-basic');
+            return view('content.authentications.auth-forgot-password-cover');
         });
 
         Fortify::resetPasswordView(function (Request $request) {
-            return view('content.authentications.auth-reset-password-basic', ['request' => $request]);
+            return view('content.authentications.auth-reset-password-cover', ['request' => $request]);
         });
 
         // Authenticate using check

@@ -38,7 +38,6 @@
           <th>Driver</th>
           <th>Phone</th>
           <th>License #</th>
-          <th>Assigned Vehicle</th>
           <th>CDL Class</th>
           <th>Actions</th>
         </tr>
@@ -60,7 +59,6 @@
           </td>
           <td>{{ $driver->phone_number ?? '-' }}</td>
           <td>{{ $driver->getMeta('driver_license_number', '-') }}</td>
-          <td>{{ $driver->getMeta('assigned_vehicle', '-') }}</td>
           <td>{{ $driver->getMeta('cdl_class', '-') }}</td>
           <td>
             <div class="d-flex gap-1">

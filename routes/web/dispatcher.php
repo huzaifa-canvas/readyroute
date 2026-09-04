@@ -31,8 +31,15 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin'])->grou
     Route::get('trip/edit/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'edit'])->name('dispatcher.trip.edit');
     Route::put('trip/update/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'update'])->name('dispatcher.trip.update');
     Route::delete('trip/delete/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'destroy'])->name('dispatcher.trip.delete');
+    Route::post('trip/assign/{id}', [App\Http\Controllers\Web\Dispatcher\DashboardController::class, 'assignDriver'])->name('dispatcher.trip.assign');
     Route::view('live-map', 'content.dispatcher.coming-soon')->name('dispatcher.live-map');
-    Route::view('auto-dispatch', 'content.dispatcher.coming-soon')->name('dispatcher.auto-dispatch');
+    Route::get('auto-dispatch', [App\Http\Controllers\Web\Dispatcher\AutoDispatchController::class, 'index'])->name('dispatcher.auto-dispatch');
+    Route::post('auto-dispatch/optimize', [App\Http\Controllers\Web\Dispatcher\AutoDispatchController::class, 'optimize'])->name('dispatcher.auto-dispatch.optimize');
+
+    // Profile & Password Management
+    Route::get('profile', [App\Http\Controllers\Web\Dispatcher\ProfileController::class, 'index'])->name('dispatcher.profile.index');
+    Route::put('profile/update', [App\Http\Controllers\Web\Dispatcher\ProfileController::class, 'updateProfile'])->name('dispatcher.profile.update');
+    Route::put('profile/password', [App\Http\Controllers\Web\Dispatcher\ProfileController::class, 'updatePassword'])->name('dispatcher.profile.password');
     // Fleet Management (Vehicle Management System)
     Route::get('fleet', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'index'])->name('dispatcher.fleet.index');
     Route::get('fleet/create', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'create'])->name('dispatcher.fleet.create');

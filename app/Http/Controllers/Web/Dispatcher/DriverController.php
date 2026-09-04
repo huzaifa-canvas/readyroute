@@ -45,7 +45,6 @@ class DriverController extends Controller
             'license_state' => 'nullable|string|max:50',
             'license_expiry_date' => 'nullable|date',
             'cdl_class' => 'nullable|string|max:100',
-            'assigned_vehicle' => 'nullable|string|max:100',
             'internal_notes' => 'nullable|string',
         ]);
 
@@ -71,7 +70,6 @@ class DriverController extends Controller
             'license_state' => $request->license_state,
             'license_expiry_date' => $request->license_expiry_date,
             'cdl_class' => $request->cdl_class,
-            'assigned_vehicle' => $request->assigned_vehicle,
             'availability_mon_fri' => $request->has('availability_mon_fri') ? '1' : '0',
             'availability_sat' => $request->has('availability_sat') ? '1' : '0',
             'availability_sun' => $request->has('availability_sun') ? '1' : '0',
@@ -87,6 +85,7 @@ class DriverController extends Controller
         // Enforce ownership: only driver belonging to this dispatcher
         $driver = User::where('role', 'driver')
             ->where('dispatcher_id', auth()->id())
+            ->with('metas')
             ->findOrFail($id);
 
         return view('content.dispatcher.drivers.edit', compact('driver'));
@@ -108,7 +107,6 @@ class DriverController extends Controller
             'license_state' => 'nullable|string|max:50',
             'license_expiry_date' => 'nullable|date',
             'cdl_class' => 'nullable|string|max:100',
-            'assigned_vehicle' => 'nullable|string|max:100',
             'internal_notes' => 'nullable|string',
         ]);
 
@@ -137,7 +135,6 @@ class DriverController extends Controller
             'license_state' => $request->license_state,
             'license_expiry_date' => $request->license_expiry_date,
             'cdl_class' => $request->cdl_class,
-            'assigned_vehicle' => $request->assigned_vehicle,
             'availability_mon_fri' => $request->has('availability_mon_fri') ? '1' : '0',
             'availability_sat' => $request->has('availability_sat') ? '1' : '0',
             'availability_sun' => $request->has('availability_sun') ? '1' : '0',

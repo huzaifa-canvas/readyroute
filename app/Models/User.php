@@ -144,8 +144,14 @@ class User extends Authenticatable
      */
     public function getAvatarUrlAttribute()
     {
-        $image = $this->profile_image ?? $this->avatar;
+        $image = $this->avatar ?? $this->profile_image;
         if ($image) {
+            if (str_starts_with($image, 'http://') || str_starts_with($image, 'https://')) {
+                return $image;
+            }
+            if (str_starts_with($image, 'assets/') || str_starts_with($image, 'upload/') || str_starts_with($image, 'storage/')) {
+                return asset($image);
+            }
             return asset('storage/' . $image);
         }
 

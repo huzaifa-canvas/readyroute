@@ -99,21 +99,6 @@
         </div>
       </div>
 
-      {{-- Vehicle Assignment --}}
-      <div class="card mb-4">
-        <div class="card-header">
-          <h5 class="card-title mb-0 fw-semibold">Vehicle Assignment</h5>
-        </div>
-        <div class="card-body">
-          <div class="row g-4">
-            <div class="col-md-12">
-              <label class="form-label" for="assigned_vehicle">Assign Vehicle</label>
-              <input type="text" id="assigned_vehicle" name="assigned_vehicle" class="form-control" placeholder="Enter Vehicle ID / Name" value="{{ old('assigned_vehicle') }}" />
-            </div>
-          </div>
-        </div>
-      </div>
-
       {{-- Availability --}}
       <div class="card mb-4">
         <div class="card-header">
