@@ -72,4 +72,23 @@ class ProfileController extends Controller
 
         return redirect()->back()->with('success_password', 'Password updated successfully!');
     }
+
+    public function toggle2FA(Request $request)
+    {
+        $user = auth()->user();
+        $is2FA = $user->getMeta('two_factor_enabled', false) || !is_null($user->two_factor_confirmed_at);
+
+        if ($is2FA) {
+            $user->setMeta('two_factor_enabled', false);
+            $user->two_factor_confirmed_at = null;
+            $user->two_factor_secret = null;
+            $user->save();
+            return redirect()->back()->with('success_2fa', 'Two-Factor Authentication has been disabled.');
+        } else {
+            $user->setMeta('two_factor_enabled', true);
+            $user->two_factor_confirmed_at = now();
+            $user->save();
+            return redirect()->back()->with('success_2fa', 'Two-Factor Authentication has been enabled successfully!');
+        }
+    }
 }

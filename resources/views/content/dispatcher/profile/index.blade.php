@@ -25,6 +25,13 @@
       </div>
     @endif
 
+    @if(session('success_2fa'))
+      <div class="alert alert-success alert-dismissible mb-4" role="alert">
+        <i class="ti tabler-circle-check me-2"></i>{{ session('success_2fa') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    @endif
+
     {{-- CARD 1: PROFILE DETAILS FORM --}}
     <div class="card mb-4 shadow-sm border-0">
       <h5 class="card-header border-bottom fw-bold"><i class="ti tabler-user me-2 text-primary"></i>Profile Details</h5>
@@ -211,6 +218,39 @@
           </div>
         </div>
       </form>
+    </div>
+
+    {{-- CARD 3: TWO-FACTOR AUTHENTICATION (2FA) --}}
+    @php
+      $is2faActive = $user->getMeta('two_factor_enabled', false) || !is_null($user->two_factor_confirmed_at);
+    @endphp
+    <div class="card mb-4 shadow-sm border-0">
+      <h5 class="card-header border-bottom fw-bold"><i class="ti tabler-shield-check me-2 text-success"></i>Two-Factor Authentication (2FA)</h5>
+      <div class="card-body pt-4">
+        @if($is2faActive)
+          <div class="p-4 rounded-3 d-flex align-items-center justify-content-between flex-wrap gap-3" style="background-color: #e8f5e9; border: 1px solid #c8e6c9;">
+            <div>
+              <h6 class="fw-bold text-success mb-1 fs-5"><i class="ti tabler-circle-check me-2"></i>Authenticator App Enabled</h6>
+              <small class="text-muted d-block">Your account is highly secure.</small>
+            </div>
+            <form action="{{ route('dispatcher.profile.2fa') }}" method="POST">
+              @csrf
+              <button type="submit" class="btn btn-outline-secondary btn-sm rounded-pill px-4 fw-semibold" onclick="return confirm('Are you sure you want to disable 2FA for your account?')">Disable 2FA</button>
+            </form>
+          </div>
+        @else
+          <div class="p-4 rounded-3 d-flex align-items-center justify-content-between flex-wrap gap-3 bg-label-secondary border">
+            <div>
+              <h6 class="fw-bold text-heading mb-1 fs-5"><i class="ti tabler-shield-x me-2 text-warning"></i>Two-Factor Authentication Disabled</h6>
+              <small class="text-muted d-block">Add an extra layer of security to your account.</small>
+            </div>
+            <form action="{{ route('dispatcher.profile.2fa') }}" method="POST">
+              @csrf
+              <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-semibold">Enable 2FA</button>
+            </form>
+          </div>
+        @endif
+      </div>
     </div>
 
   </div>

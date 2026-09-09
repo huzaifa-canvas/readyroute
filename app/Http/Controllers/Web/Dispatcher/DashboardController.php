@@ -67,4 +67,22 @@ class DashboardController extends Controller
 
         return redirect()->back()->with('success', 'Driver assigned successfully!');
     }
+
+    public function liveMap()
+    {
+        $dispatcherId = auth()->id();
+
+        $trips = Trip::with(['driver', 'vehicle', 'client'])
+            ->where('dispatcher_id', $dispatcherId)
+            ->get();
+
+        $drivers = User::where('dispatcher_id', $dispatcherId)
+            ->where('role', 'driver')
+            ->get();
+
+        $activeTripsCount = $trips->whereIn('status', ['in_progress', 'scheduled'])->count();
+        $onlineDriversCount = $drivers->count();
+
+        return view('content.dispatcher.live-map', compact('trips', 'drivers', 'activeTripsCount', 'onlineDriversCount'));
+    }
 }

@@ -8,15 +8,27 @@ if ($user && $user->isAdmin()) {
     $menuItems = [
         (object)[
             'url' => 'admin',
-            'name' => 'Dashboard',
-            'icon' => 'menu-icon icon-base ti tabler-dashboard',
+            'name' => 'System Overview',
+            'icon' => 'menu-icon icon-base ti tabler-layout-dashboard',
             'slug' => 'admin.dashboard'
         ],
         (object)[
-            'url' => 'admin/user/list',
-            'name' => 'Users',
-            'icon' => 'menu-icon icon-base ti tabler-users',
-            'slug' => 'admin.user'
+            'url' => 'admin/companies',
+            'name' => 'Company Management',
+            'icon' => 'menu-icon icon-base ti tabler-building',
+            'slug' => ['admin.company.list', 'admin.company.create']
+        ],
+        (object)[
+            'url' => 'admin/subscription',
+            'name' => 'My Subscription',
+            'icon' => 'menu-icon icon-base ti tabler-file-dollar',
+            'slug' => 'admin.subscription'
+        ],
+        (object)[
+            'url' => 'admin/security',
+            'name' => 'Platform Security',
+            'icon' => 'menu-icon icon-base ti tabler-shield-lock',
+            'slug' => 'admin.security'
         ]
     ];
 } elseif ($user && $user->isDispatcher()) {
