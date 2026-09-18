@@ -18,14 +18,24 @@ class RoleMiddleware
     {
         if (! $request->user()) {
             if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json(['status' => false, 'message' => 'Unauthenticated.'], 401);
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Unauthenticated. Please sign in again.',
+                    'data'    => null,
+                    'errors'  => null,
+                ], 401);
             }
             return redirect()->route('login');
         }
 
         if (! in_array($request->user()->role, $roles)) {
             if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json(['status' => false, 'message' => 'Unauthorized access for your role.'], 403);
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Unauthorized access for your role.',
+                    'data'    => null,
+                    'errors'  => null,
+                ], 403);
             }
             abort(403, 'Unauthorized access.');
         }

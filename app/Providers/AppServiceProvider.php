@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\Distance\DistanceProvider;
+use App\Services\Distance\HaversineProvider;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Pagination\Paginator;
@@ -13,7 +15,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Distance and ETA run behind an interface so the straight-line
+        // estimate used today can be swapped for Google Directions by changing
+        // config/readyroute.php alone.
+        $this->app->singleton(DistanceProvider::class, function ($app) {
+            $config = $app['config']->get('readyroute.distance');
+
+            return match ($config['provider']) {
+                default => new HaversineProvider(
+                    (float) $config['road_factor'],
+                    (float) $config['average_speed_mph'],
+                ),
+            };
+        });
     }
 
     /**

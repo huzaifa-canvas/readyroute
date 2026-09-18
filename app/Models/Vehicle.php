@@ -11,7 +11,9 @@ class Vehicle extends Model
 
     protected $fillable = [
         'dispatcher_id',
+        'assigned_driver_id',
         'name',
+        'vehicle_code',
         'image',
         'make_model_year',
         'year',
@@ -37,5 +39,28 @@ class Vehicle extends Model
     public function dispatcher()
     {
         return $this->belongsTo(User::class, 'dispatcher_id');
+    }
+
+    public function assignedDriver()
+    {
+        return $this->belongsTo(User::class, 'assigned_driver_id');
+    }
+
+    public function inspections()
+    {
+        return $this->hasMany(VehicleInspection::class);
+    }
+
+    /**
+     * How the vehicle is named to a driver, e.g. "V-204 - Ford Transit".
+     */
+    public function displayLabel(): string
+    {
+        $parts = array_filter([
+            $this->vehicle_code,
+            $this->make_model_year ?: $this->name,
+        ]);
+
+        return implode(' - ', $parts);
     }
 }

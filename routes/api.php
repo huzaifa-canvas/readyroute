@@ -8,8 +8,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::fallback(function () {
     return response()->json([
-        'status' => false,
+        'status'  => false,
         'message' => 'API route not found.',
+        'data'    => null,
+        'errors'  => null,
     ], 404);
 });
 

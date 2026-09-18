@@ -25,8 +25,15 @@ class User extends Authenticatable
         'avatar',
         'profile_image',
         'role',
+        'driver_code',
         'dispatcher_id',
         'phone_number',
+        'device_token',
+        'is_online',
+        'last_seen_at',
+        'last_lat',
+        'last_lng',
+        'last_location_at',
     ];
 
     /**
@@ -37,6 +44,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'device_token',
     ];
 
     /**
@@ -49,7 +57,38 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_online' => 'boolean',
+            'last_seen_at' => 'datetime',
+            'last_lat' => 'decimal:8',
+            'last_lng' => 'decimal:8',
+            'last_location_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Give every driver a readable reference (#DRV-0047) the moment they are
+     * created, so the sign-off screen always has something to print.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $user) {
+            if ($user->role === 'driver' && empty($user->driver_code)) {
+                $user->driver_code = static::nextDriverCode();
+            }
+        });
+    }
+
+    public static function nextDriverCode(): string
+    {
+        $lastNumber = static::whereNotNull('driver_code')
+            ->orderByDesc('id')
+            ->value('driver_code');
+
+        $next = $lastNumber
+            ? ((int) preg_replace('/\D/', '', $lastNumber)) + 1
+            : 1;
+
+        return 'DRV-' . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -106,6 +145,65 @@ class User extends Authenticatable
     public function metas()
     {
         return $this->hasMany(UserMeta::class);
+    }
+
+    /**
+     * The vehicle this driver runs. The pre-trip inspection needs one before
+     * any checklist can be opened.
+     */
+    public function assignedVehicle()
+    {
+        return $this->hasOne(Vehicle::class, 'assigned_driver_id');
+    }
+
+    public function locations()
+    {
+        return $this->hasMany(DriverLocation::class, 'user_id');
+    }
+
+    public function inspections()
+    {
+        return $this->hasMany(VehicleInspection::class, 'driver_id');
+    }
+
+    public function inspectionItems()
+    {
+        return $this->hasMany(InspectionItem::class, 'dispatcher_id');
+    }
+
+    public function sentMessages()
+    {
+        return $this->hasMany(Message::class, 'sender_id');
+    }
+
+    public function receivedMessages()
+    {
+        return $this->hasMany(Message::class, 'receiver_id');
+    }
+
+    /**
+     * A driver's own company. Dispatchers are their own company, which keeps
+     * tenant scoping uniform for both roles.
+     */
+    public function companyId(): ?int
+    {
+        return $this->isDispatcher() ? $this->id : $this->dispatcher_id;
+    }
+
+    /**
+     * Presence is considered stale once no ping or socket activity has been
+     * seen for the configured window, so a crashed app does not leave a driver
+     * showing as online forever.
+     */
+    public function isCurrentlyOnline(): bool
+    {
+        if (! $this->is_online || ! $this->last_seen_at) {
+            return false;
+        }
+
+        $window = (int) config('readyroute.presence.offline_after_minutes', 5);
+
+        return $this->last_seen_at->gt(now()->subMinutes($window));
     }
 
     /**
