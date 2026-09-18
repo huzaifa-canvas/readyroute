@@ -5,15 +5,19 @@ namespace App\Http\Controllers\Api\Driver;
 use App\Enums\TripStatus;
 use App\Http\Resources\Driver\TripListResource;
 use App\Http\Resources\Driver\TripResource;
+use App\Http\Resources\Driver\TripStatusLogResource;
 use App\Models\Trip;
 use App\Services\Distance\DistanceProvider;
+use App\Services\TripLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class TripController extends BaseDriverController
 {
-    public function __construct(private readonly DistanceProvider $distance)
-    {
+    public function __construct(
+        private readonly DistanceProvider $distance,
+        private readonly TripLifecycleService $lifecycle,
+    ) {
     }
 
     /**
@@ -92,5 +96,63 @@ class TripController extends BaseDriverController
         );
 
         return $this->ok(new TripResource($trip, $eta));
+    }
+
+    /**
+     * The completion screen: what the run cost, the stamped status log, and
+     * whether a sign-off signature is still outstanding.
+     */
+    public function summary(string $id): JsonResponse
+    {
+        $trip = $this->findTrip($id);
+
+        if (! $trip) {
+            return $this->notFound('Trip not found.');
+        }
+
+        $trip->load(['statusLogs', 'signature', 'vehicle']);
+
+        // While a trip is still running these are live figures rather than the
+        // finalised ones written at completion.
+        $duration = $trip->actual_duration_min ?? $this->lifecycle->durationMinutes($trip);
+        $distance = $trip->actual_distance !== null
+            ? (float) $trip->actual_distance
+            : $this->lifecycle->travelledMiles($trip);
+
+        $onTime = $trip->was_on_time ?? $trip->resolveOnTime();
+
+        return $this->ok([
+            'trip' => [
+                'id'        => $trip->id,
+                'reference' => $trip->reference(),
+                'status'    => $trip->status,
+                'date'      => optional($trip->pickup_date)->toDateString(),
+            ],
+
+            'passenger' => [
+                'full_name'    => $trip->passengerName(),
+                'phone_number' => $trip->phone_number,
+            ],
+
+            'pickup'  => ['address' => $trip->pickup_address],
+            'dropoff' => ['address' => $trip->dropoff_address],
+
+            'totals' => [
+                'duration_minutes' => $duration,
+                'distance_miles'   => $distance,
+                'on_time'          => $onTime,
+                'on_time_label'    => $onTime === null
+                    ? null
+                    : ($onTime ? 'On Time' : 'Late'),
+            ],
+
+            'status_log' => TripStatusLogResource::collection($trip->statusLogs),
+
+            'signature' => [
+                'required'  => $trip->isStatus(TripStatus::Completed),
+                'collected' => $trip->signature !== null,
+                'signed_at' => optional($trip->signature?->signed_at)->toIso8601String(),
+            ],
+        ]);
     }
 }

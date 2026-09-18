@@ -3,9 +3,11 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Driver\AuthController;
 use App\Http\Controllers\Api\Driver\DashboardController;
+use App\Http\Controllers\Api\Driver\LocationController;
 use App\Http\Controllers\Api\Driver\ProfileController;
 use App\Http\Controllers\Api\Driver\SettingsController;
 use App\Http\Controllers\Api\Driver\TripController;
+use App\Http\Controllers\Api\Driver\TripStatusController;
 
 // ═══════════════════════════════════════════════════
 // DRIVER MOBILE APP API ROUTES
@@ -42,5 +44,12 @@ Route::prefix('driver')->group(function () {
         // Trips
         Route::get('/trips', [TripController::class, 'index']);
         Route::get('/trips/{id}', [TripController::class, 'show'])->whereNumber('id');
+        Route::get('/trips/{id}/summary', [TripController::class, 'summary'])->whereNumber('id');
+
+        // Trip lifecycle: en route -> arrived -> started -> arrived -> completed
+        Route::post('/trips/{id}/status', [TripStatusController::class, 'update'])->whereNumber('id');
+
+        // GPS
+        Route::post('/location', [LocationController::class, 'store']);
     });
 });

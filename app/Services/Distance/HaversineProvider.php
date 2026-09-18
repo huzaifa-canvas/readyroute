@@ -2,6 +2,8 @@
 
 namespace App\Services\Distance;
 
+use App\Support\Geo;
+
 /**
  * Straight-line distance, no API key required. Real driving distance is always
  * longer than the great-circle line, so the result is scaled by a road factor
@@ -13,8 +15,6 @@ namespace App\Services\Distance;
  */
 class HaversineProvider implements DistanceProvider
 {
-    private const EARTH_RADIUS_MILES = 3958.8;
-
     public function __construct(
         private readonly float $roadFactor,
         private readonly float $averageSpeedMph,
@@ -26,13 +26,7 @@ class HaversineProvider implements DistanceProvider
             return DistanceEstimate::unknown();
         }
 
-        $latDelta = deg2rad($toLat - $fromLat);
-        $lngDelta = deg2rad($toLng - $fromLng);
-
-        $a = sin($latDelta / 2) ** 2
-            + cos(deg2rad($fromLat)) * cos(deg2rad($toLat)) * sin($lngDelta / 2) ** 2;
-
-        $straightLine = self::EARTH_RADIUS_MILES * 2 * asin(min(1.0, sqrt($a)));
+        $straightLine = Geo::haversineMiles($fromLat, $fromLng, $toLat, $toLng);
         $miles = round($straightLine * $this->roadFactor, 1);
 
         $minutes = $this->averageSpeedMph > 0
