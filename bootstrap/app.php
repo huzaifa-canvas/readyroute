@@ -6,6 +6,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\LocaleMiddleware;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\VerifySocketSecret;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -26,7 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->api(ForceJsonResponse::class);
 
         $middleware->alias([
-            'role' => RoleMiddleware::class,
+            'role'          => RoleMiddleware::class,
+            'socket.secret' => VerifySocketSecret::class,
         ]);
 
         $middleware->redirectGuestsTo(function (Request $request) {

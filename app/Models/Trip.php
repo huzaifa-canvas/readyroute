@@ -59,11 +59,7 @@ class Trip extends Model
         'req_o2_tank' => 'boolean',
         'req_bariatric' => 'boolean',
         'req_no_steps' => 'boolean',
-        // NOTE: "status" is deliberately left as a plain string rather than
-        // cast to TripStatus. The dispatcher panel compares it against string
-        // literals and passes it to str_replace() in its Blade views, all of
-        // which break against an enum instance. New code reads it through
-        // statusEnum() instead; the cast is added when the panel is migrated.
+        'status' => TripStatus::class,
         'confirmation_status' => ConfirmationStatus::class,
         'confirmed_at' => 'datetime',
         'en_route_at' => 'datetime',
@@ -117,12 +113,16 @@ class Trip extends Model
      */
     public function statusEnum(): ?TripStatus
     {
+        if ($this->status instanceof TripStatus) {
+            return $this->status;
+        }
+
         return $this->status ? TripStatus::tryFrom($this->status) : null;
     }
 
     public function isStatus(TripStatus $status): bool
     {
-        return $this->status === $status->value;
+        return $this->statusEnum() === $status;
     }
 
     /**
@@ -223,6 +223,18 @@ class Trip extends Model
     public function passengerName(): string
     {
         return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    /**
+     * The abbreviated form used in trip history, e.g. "A. Johnson". Past trips
+     * are a list the driver scans rather than reads, and the surname is what
+     * they recognise.
+     */
+    public function passengerShortName(): string
+    {
+        $initial = $this->first_name ? mb_substr(trim($this->first_name), 0, 1) . '.' : '';
+
+        return trim($initial . ' ' . $this->last_name) ?: $this->passengerName();
     }
 
     /**

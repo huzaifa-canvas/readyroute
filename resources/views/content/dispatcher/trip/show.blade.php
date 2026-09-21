@@ -28,18 +28,17 @@
 
 {{-- Status Banner --}}
 @php
-  $statusBg = 'bg-label-warning text-warning border-warning';
-  $statusText = 'Scheduled';
-  if ($trip->status === 'in_progress') {
-    $statusBg = 'bg-label-success text-success border-success';
-    $statusText = 'En Route to Pickup / In Progress';
-  } elseif ($trip->status === 'completed') {
-    $statusBg = 'bg-label-primary text-primary border-primary';
-    $statusText = 'Trip Completed';
-  } elseif ($trip->status === 'cancelled') {
-    $statusBg = 'bg-label-danger text-danger border-danger';
-    $statusText = 'Trip Cancelled';
-  }
+  $tripStatus = $trip->statusEnum();
+  $statusText = $tripStatus?->label() ?? 'Scheduled';
+  $statusBg = match ($tripStatus?->value) {
+    'en_route'        => 'bg-label-info text-info border-info',
+    'arrived_pickup',
+    'arrived_dropoff' => 'bg-label-primary text-primary border-primary',
+    'in_progress'     => 'bg-label-success text-success border-success',
+    'completed'       => 'bg-label-primary text-primary border-primary',
+    'cancelled'       => 'bg-label-danger text-danger border-danger',
+    default           => 'bg-label-warning text-warning border-warning',
+  };
 @endphp
 
 <div class="card mb-4 border shadow-none {{ $statusBg }} p-3">
@@ -221,7 +220,7 @@
             <span class="badge bg-warning rounded-circle p-1 me-3 mt-1"><i class="ti tabler-car"></i></span>
             <div class="d-flex justify-content-between w-100">
               <div>
-                <strong class="d-block small">Status: {{ ucfirst(str_replace('_', ' ', $trip->status)) }}</strong>
+                <strong class="d-block small">Status: {{ $trip->statusEnum()?->label() }}</strong>
                 <small class="text-muted">Current status update</small>
               </div>
               <small class="text-muted">{{ $trip->updated_at->format('h:i A') }}</small>

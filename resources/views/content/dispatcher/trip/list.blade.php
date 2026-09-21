@@ -87,14 +87,9 @@
             <small class="text-muted"><strong>Vehicle:</strong> {{ $trip->vehicle ? $trip->vehicle->name : 'Unassigned' }}</small>
           </td>
           <td>
-            @if($trip->status == 'scheduled')
-              <span class="badge bg-label-warning">Scheduled</span>
-            @elseif($trip->status == 'in_progress')
-              <span class="badge bg-label-primary">In Progress</span>
-            @elseif($trip->status == 'completed')
-              <span class="badge bg-label-success">Completed</span>
-            @elseif($trip->status == 'cancelled')
-              <span class="badge bg-label-danger">Cancelled</span>
+            @php($tripStatus = $trip->statusEnum())
+            @if($tripStatus)
+              <span class="badge {{ $tripStatus->badgeClass() }}">{{ $tripStatus->label() }}</span>
             @endif
           </td>
           <td>

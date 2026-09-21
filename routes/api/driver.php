@@ -3,9 +3,14 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Driver\AuthController;
 use App\Http\Controllers\Api\Driver\DashboardController;
+use App\Http\Controllers\Api\Driver\HistoryController;
+use App\Http\Controllers\Api\Driver\InspectionController;
 use App\Http\Controllers\Api\Driver\LocationController;
+use App\Http\Controllers\Api\Driver\MessageController;
+use App\Http\Controllers\Api\Driver\NotificationController;
 use App\Http\Controllers\Api\Driver\ProfileController;
 use App\Http\Controllers\Api\Driver\SettingsController;
+use App\Http\Controllers\Api\Driver\SignatureController;
 use App\Http\Controllers\Api\Driver\TripController;
 use App\Http\Controllers\Api\Driver\TripStatusController;
 
@@ -41,6 +46,11 @@ Route::prefix('driver')->group(function () {
         // Home screen
         Route::get('/dashboard', [DashboardController::class, 'index']);
 
+        // Pre-trip inspection (DVIR)
+        Route::get('/inspection/today', [InspectionController::class, 'today']);
+        Route::post('/inspection/item', [InspectionController::class, 'answer']);
+        Route::post('/inspection/submit', [InspectionController::class, 'submit']);
+
         // Trips
         Route::get('/trips', [TripController::class, 'index']);
         Route::get('/trips/{id}', [TripController::class, 'show'])->whereNumber('id');
@@ -49,7 +59,24 @@ Route::prefix('driver')->group(function () {
         // Trip lifecycle: en route -> arrived -> started -> arrived -> completed
         Route::post('/trips/{id}/status', [TripStatusController::class, 'update'])->whereNumber('id');
 
+        // Trip sign-off
+        Route::post('/trips/{id}/signature', [SignatureController::class, 'store'])->whereNumber('id');
+        Route::get('/trips/{id}/signature', [SignatureController::class, 'show'])->whereNumber('id');
+
         // GPS
         Route::post('/location', [LocationController::class, 'store']);
+
+        // History & performance
+        Route::get('/history', [HistoryController::class, 'index']);
+
+        // Notifications
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+        Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+
+        // Dispatch chat
+        Route::get('/messages', [MessageController::class, 'index']);
+        Route::post('/messages', [MessageController::class, 'store']);
+        Route::post('/messages/read', [MessageController::class, 'markRead']);
     });
 });

@@ -29,6 +29,23 @@ enum TripStatus: string
     }
 
     /**
+     * Bootstrap badge colour used by the dispatcher panel. Kept beside the
+     * labels so a new status cannot be added without deciding how it looks.
+     */
+    public function badgeClass(): string
+    {
+        return match ($this) {
+            self::Scheduled      => 'bg-label-secondary',
+            self::EnRoute        => 'bg-label-info',
+            self::ArrivedPickup  => 'bg-label-primary',
+            self::InProgress     => 'bg-label-warning',
+            self::ArrivedDropoff => 'bg-label-primary',
+            self::Completed      => 'bg-label-success',
+            self::Cancelled      => 'bg-label-danger',
+        };
+    }
+
+    /**
      * The button a driver taps to move a trip INTO this status. The app renders
      * whatever comes back here, so the wording lives in one place rather than
      * being duplicated across five screens.

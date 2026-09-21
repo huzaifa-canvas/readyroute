@@ -31,7 +31,7 @@ class TripListResource extends JsonResource
 
             'passenger_name' => $this->passengerName(),
 
-            'status'       => $this->status,
+            'status'       => $status?->value,
             'status_label' => $status?->label(),
 
             'confirmation_status' => $this->confirmation_status?->value,

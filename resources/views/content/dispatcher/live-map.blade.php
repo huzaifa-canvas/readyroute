@@ -96,7 +96,7 @@
           <i class="ti tabler-steering-wheel fs-6 text-white"></i>
         </span>
         <div>
-          <div class="fw-bold text-heading" style="font-size: 0.9rem;">{{ $onlineDriversCount > 0 ? $onlineDriversCount : 5 }} Active Drivers</div>
+          <div class="fw-bold text-heading" style="font-size: 0.9rem;">{{ $onlineDriversCount }} Active {{ $onlineDriversCount === 1 ? 'Driver' : 'Drivers' }}</div>
           <small class="text-muted">Online & Available</small>
         </div>
       </div>

@@ -24,7 +24,9 @@ class DashboardController extends Controller
             ->where('role', 'driver')
             ->get();
 
-        $driversOnlineCount = $totalDrivers->count();
+        // Presence is reported by the socket server on connect and disconnect,
+        // and goes stale on its own if an app dies without disconnecting.
+        $driversOnlineCount = $totalDrivers->filter->isCurrentlyOnline()->count();
         $driversTotalCount  = $totalDrivers->count();
 
         $pendingAssignmentsCount = Trip::where('dispatcher_id', $dispatcherId)
@@ -80,9 +82,35 @@ class DashboardController extends Controller
             ->where('role', 'driver')
             ->get();
 
-        $activeTripsCount = $trips->whereIn('status', ['in_progress', 'scheduled'])->count();
-        $onlineDriversCount = $drivers->count();
+        // Collection filtering, not a query: comparing an enum-cast attribute
+        // against raw strings here would silently match nothing.
+        $activeTripsCount = $trips
+            ->filter(fn ($trip) => ! ($trip->statusEnum()?->isTerminal() ?? true))
+            ->count();
 
-        return view('content.dispatcher.live-map', compact('trips', 'drivers', 'activeTripsCount', 'onlineDriversCount'));
+        $onlineDriversCount = $drivers->filter->isCurrentlyOnline()->count();
+
+        // Real positions for the map, reported by the driver app. Drivers who
+        // have never sent a fix are left out rather than placed at (0, 0).
+        $driverPositions = $drivers
+            ->filter(fn (User $driver) => $driver->last_lat !== null && $driver->last_lng !== null)
+            ->map(fn (User $driver) => [
+                'id'        => $driver->id,
+                'name'      => $driver->name,
+                'code'      => $driver->driver_code,
+                'lat'       => (float) $driver->last_lat,
+                'lng'       => (float) $driver->last_lng,
+                'is_online' => $driver->isCurrentlyOnline(),
+                'seen'      => optional($driver->last_location_at)->diffForHumans(),
+            ])
+            ->values();
+
+        return view('content.dispatcher.live-map', compact(
+            'trips',
+            'drivers',
+            'activeTripsCount',
+            'onlineDriversCount',
+            'driverPositions'
+        ));
     }
 }

@@ -38,7 +38,7 @@ class TripResource extends JsonResource
                 'member_id'    => $this->member_id,
             ],
 
-            'status'       => $this->status,
+            'status'       => $status?->value,
             'status_label' => $status?->label(),
             'step_label'   => $status?->stepLabel(),
             'is_finished'  => (bool) $status?->isTerminal(),

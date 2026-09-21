@@ -19,6 +19,9 @@ Route::fallback(function () {
 // ROLE-BASED API ROUTES (loaded from separate files)
 // ═══════════════════════════════════════════════════
 
+// Internal server-to-server routes (socket.io process)
+require __DIR__ . '/api/internal.php';
+
 // Dispatcher Mobile App API Routes
 require __DIR__ . '/api/dispatcher.php';
 

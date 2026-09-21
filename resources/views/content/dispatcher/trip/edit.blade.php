@@ -142,10 +142,12 @@
             <div class="col-md-6">
               <label class="form-label" for="status">Trip Status <span class="text-danger">*</span></label>
               <select id="status" name="status" class="form-select" required>
-                <option value="scheduled" {{ old('status', $trip->status) == 'scheduled' ? 'selected' : '' }}>Scheduled</option>
-                <option value="in_progress" {{ old('status', $trip->status) == 'in_progress' ? 'selected' : '' }}>In Progress / En Route</option>
-                <option value="completed" {{ old('status', $trip->status) == 'completed' ? 'selected' : '' }}>Completed</option>
-                <option value="cancelled" {{ old('status', $trip->status) == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                @php($currentStatus = old('status', $trip->statusEnum()?->value))
+                @foreach(\App\Enums\TripStatus::cases() as $statusOption)
+                  <option value="{{ $statusOption->value }}" {{ $currentStatus === $statusOption->value ? 'selected' : '' }}>
+                    {{ $statusOption->label() }}
+                  </option>
+                @endforeach
               </select>
             </div>
 

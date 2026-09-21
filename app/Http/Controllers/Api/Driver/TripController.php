@@ -79,9 +79,9 @@ class TripController extends BaseDriverController
 
         // Before the passenger is aboard the driver is heading to the pickup;
         // afterwards, to the drop-off.
-        $headingToPickup = in_array($trip->status, [
-            TripStatus::Scheduled->value,
-            TripStatus::EnRoute->value,
+        $headingToPickup = in_array($trip->statusEnum(), [
+            TripStatus::Scheduled,
+            TripStatus::EnRoute,
         ], true);
 
         $eta = $this->distance->between(
@@ -125,7 +125,7 @@ class TripController extends BaseDriverController
             'trip' => [
                 'id'        => $trip->id,
                 'reference' => $trip->reference(),
-                'status'    => $trip->status,
+                'status'    => $trip->statusEnum()?->value,
                 'date'      => optional($trip->pickup_date)->toDateString(),
             ],
 

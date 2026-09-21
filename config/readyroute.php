@@ -60,6 +60,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Push Notifications
+    |--------------------------------------------------------------------------
+    |
+    | Notifications are written to the database from day one. Turning this on
+    | additionally delivers them through Firebase, for drivers who have left
+    | push enabled in the app. Every notification already carries an FCM
+    | payload, so enabling push needs no change to the notification classes.
+    |
+    */
+
+    'push' => [
+        'enabled' => env('READYROUTE_PUSH_ENABLED', false),
+
+        'firebase' => [
+            'project_id'       => env('FIREBASE_PROJECT_ID'),
+            'credentials_path' => env('FIREBASE_CREDENTIALS'),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Driver Location Tracking
     |--------------------------------------------------------------------------
     |

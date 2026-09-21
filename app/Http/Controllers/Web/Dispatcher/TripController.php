@@ -152,7 +152,7 @@ class TripController extends Controller
                     'driver'     => $trip->driver ? $trip->driver->name : 'Unassigned',
                     'driver_id'  => $trip->driver_id ?: 'unassigned',
                     'vehicle'    => $trip->vehicle ? $trip->vehicle->name : 'Unassigned',
-                    'status'     => $trip->status,
+                    'status'     => $trip->statusEnum()?->value,
                     'type'       => str_replace('_', ' ', $trip->trip_type),
                     'distance'   => $trip->distance ? $trip->distance . ' Miles' : 'N/A',
                     'notes'      => $trip->notes ?: 'None',
@@ -207,7 +207,7 @@ class TripController extends Controller
             'distance' => 'nullable|numeric',
             'trip_type' => 'required|in:one_way,round_trip,recurring',
             'notes' => 'nullable|string',
-            'status' => 'required|in:scheduled,in_progress,completed,cancelled',
+            'status' => 'required|in:' . implode(',', \App\Enums\TripStatus::values()),
             
             'driver_id' => 'nullable|exists:users,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
