@@ -13,7 +13,7 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $dispatcherId = auth()->id();
+        $dispatcherId = auth()->user()->companyId();
 
         // 1. Stat Metrics
         $activeTripsCount = Trip::where('dispatcher_id', $dispatcherId)
@@ -63,7 +63,7 @@ class DashboardController extends Controller
             'driver_id' => 'required|exists:users,id',
         ]);
 
-        $trip = Trip::where('dispatcher_id', auth()->id())->findOrFail($id);
+        $trip = Trip::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
         $trip->driver_id = $request->driver_id;
         $trip->save();
 
@@ -72,7 +72,7 @@ class DashboardController extends Controller
 
     public function liveMap()
     {
-        $dispatcherId = auth()->id();
+        $dispatcherId = auth()->user()->companyId();
 
         $trips = Trip::with(['driver', 'vehicle', 'client'])
             ->where('dispatcher_id', $dispatcherId)

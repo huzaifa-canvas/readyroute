@@ -16,7 +16,7 @@ class TripController extends Controller
         $dispatcher = auth()->user();
 
         $query = Trip::with(['client', 'driver', 'vehicle'])
-            ->where('dispatcher_id', $dispatcher->id);
+            ->where('dispatcher_id', $dispatcher->companyId());
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -39,7 +39,7 @@ class TripController extends Controller
 
     public function create()
     {
-        $dispatcherId = auth()->id();
+        $dispatcherId = auth()->user()->companyId();
 
         $clients = Client::where('dispatcher_id', $dispatcherId)->get();
         $drivers = User::where('dispatcher_id', $dispatcherId)->where('role', 'driver')->get();
@@ -84,7 +84,7 @@ class TripController extends Controller
             $validatedData['pickup_time'] = \Carbon\Carbon::parse($validatedData['pickup_time'])->format('H:i:s');
         }
 
-        $validatedData['dispatcher_id'] = auth()->id();
+        $validatedData['dispatcher_id'] = auth()->user()->companyId();
         $validatedData['status'] = 'scheduled';
 
         Trip::create($validatedData);
@@ -94,7 +94,7 @@ class TripController extends Controller
 
     public function calendar()
     {
-        $dispatcherId = auth()->id();
+        $dispatcherId = auth()->user()->companyId();
         $drivers = User::where('dispatcher_id', $dispatcherId)->where('role', 'driver')->get();
         return view('content.dispatcher.trip.calendar', compact('drivers'));
     }
@@ -104,7 +104,7 @@ class TripController extends Controller
         $dispatcher = auth()->user();
 
         $trips = Trip::with(['driver', 'vehicle', 'client'])
-            ->where('dispatcher_id', $dispatcher->id)
+            ->where('dispatcher_id', $dispatcher->companyId())
             ->get();
 
         // Vuexy theme label color palette (soft badges)
@@ -166,7 +166,7 @@ class TripController extends Controller
     public function show($id)
     {
         $trip = Trip::with(['client', 'driver', 'vehicle'])
-            ->where('dispatcher_id', auth()->id())
+            ->where('dispatcher_id', auth()->user()->companyId())
             ->findOrFail($id);
 
         return view('content.dispatcher.trip.show', compact('trip'));
@@ -174,7 +174,7 @@ class TripController extends Controller
 
     public function edit($id)
     {
-        $dispatcherId = auth()->id();
+        $dispatcherId = auth()->user()->companyId();
         $trip = Trip::where('dispatcher_id', $dispatcherId)->findOrFail($id);
 
         $clients = Client::where('dispatcher_id', $dispatcherId)->get();
@@ -186,7 +186,7 @@ class TripController extends Controller
 
     public function update(Request $request, $id)
     {
-        $dispatcherId = auth()->id();
+        $dispatcherId = auth()->user()->companyId();
         $trip = Trip::where('dispatcher_id', $dispatcherId)->findOrFail($id);
 
         $validatedData = $request->validate([
@@ -229,9 +229,25 @@ class TripController extends Controller
         return redirect()->route('dispatcher.trip.details', $trip->id)->with('success', 'Trip updated successfully!');
     }
 
+    /**
+     * Create the passenger tracking link before the driver sets off.
+     *
+     * The link is normally minted when a trip goes en route; this lets a
+     * dispatcher send it in advance, which is what they need while there is
+     * no SMS provider doing it for them.
+     */
+    public function trackingLink($id)
+    {
+        $trip = Trip::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
+
+        $trip->trackingToken();
+
+        return back()->with('success', 'Tracking link created. Copy it and send it to the passenger.');
+    }
+
     public function destroy($id)
     {
-        $trip = Trip::where('dispatcher_id', auth()->id())->findOrFail($id);
+        $trip = Trip::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
         $trip->delete();
 
         return redirect()->route('dispatcher.trip.list')->with('success', 'Trip deleted successfully!');

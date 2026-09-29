@@ -41,6 +41,22 @@ class Client extends Model
     
     protected $appends = ['age'];
 
+    /**
+     * Dated notes dispatchers have written about this client. Drivers see the
+     * ones flagged visible on the trip screen; the profile page shows them all.
+     */
+    public function notes()
+    {
+        return $this->hasMany(ClientNote::class)->orderByDesc('created_at');
+    }
+
+    public function driverVisibleNotes()
+    {
+        return $this->hasMany(ClientNote::class)
+            ->where('visible_to_driver', true)
+            ->orderByDesc('created_at');
+    }
+
     public function dispatcher()
     {
         return $this->belongsTo(User::class, 'dispatcher_id');

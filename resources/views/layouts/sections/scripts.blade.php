@@ -8,6 +8,10 @@
 
 @vite(['resources/assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js', 'resources/assets/vendor/libs/hammer/hammer.js', 'resources/assets/vendor/js/menu.js'])
 
+{{-- Powers the navbar search palette (Ctrl+K). main.js looks for
+     window.autocomplete, so this has to load before it. --}}
+@vite(['resources/assets/vendor/libs/@algolia/autocomplete-js.js'])
+
 @yield('vendor-script')
 <!-- END: Page Vendor JS-->
 

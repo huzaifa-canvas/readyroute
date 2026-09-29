@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Web\Dispatcher;
 
 use App\Http\Controllers\Controller;
+use App\Models\DriverDocument;
+use App\Models\Trip;
+use App\Models\TripIncident;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -16,16 +19,76 @@ class DriverController extends Controller
 
         // Get drivers owned ONLY by this logged-in dispatcher
         $drivers = User::where('role', 'driver')
-            ->where('dispatcher_id', $dispatcher->id)
+            ->where('dispatcher_id', $dispatcher->companyId())
             ->with('metas')
             ->latest()
             ->paginate(15);
 
         $totalDrivers = User::where('role', 'driver')
-            ->where('dispatcher_id', $dispatcher->id)
+            ->where('dispatcher_id', $dispatcher->companyId())
             ->count();
 
         return view('content.dispatcher.drivers.list', compact('drivers', 'totalDrivers'));
+    }
+
+    /**
+     * One driver, in full: where they are, what they are carrying, how they
+     * have been performing and what paperwork is due.
+     */
+    public function show($id)
+    {
+        $companyId = auth()->user()->companyId();
+
+        $driver = User::driversOf($companyId)
+            ->with(['metas', 'assignedVehicle'])
+            ->findOrFail($id);
+
+        $activeTrip = Trip::forDriver($driver->id)->active()->with('client')->first();
+
+        $todaysTrips = Trip::forDriver($driver->id)
+            ->whereDate('pickup_date', today())
+            ->orderBy('pickup_time')
+            ->get();
+
+        $recentTrips = Trip::forDriver($driver->id)
+            ->with('client')
+            ->latest('pickup_date')
+            ->limit(10)
+            ->get();
+
+        // Lifetime figures, so the page says something even for a driver with
+        // a quiet month.
+        $completed = Trip::forDriver($driver->id)->where('status', \App\Enums\TripStatus::Completed->value);
+
+        $stats = [
+            'total_trips'    => Trip::forDriver($driver->id)->count(),
+            'completed'      => (clone $completed)->count(),
+            'miles'          => round((float) (clone $completed)->sum('actual_distance'), 1),
+            'today'          => $todaysTrips->count(),
+            'open_incidents' => TripIncident::where('driver_id', $driver->id)->open()->count(),
+        ];
+
+        $scored = (clone $completed)->whereNotNull('was_on_time')->count();
+        $stats['on_time_rate'] = $scored > 0
+            ? round((clone $completed)->where('was_on_time', true)->count() / $scored * 100)
+            : null;
+
+        $documents = DriverDocument::where('driver_id', $driver->id)
+            ->orderByRaw('expires_on IS NULL')
+            ->orderBy('expires_on')
+            ->get();
+
+        $incidents = TripIncident::where('driver_id', $driver->id)
+            ->latest()
+            ->limit(5)
+            ->get();
+
+        // The last few pings, newest first, for the position panel.
+        $trail = $driver->locations()->latest()->limit(10)->get();
+
+        return view('content.dispatcher.drivers.show', compact(
+            'driver', 'activeTrip', 'todaysTrips', 'recentTrips', 'stats', 'documents', 'incidents', 'trail'
+        ));
     }
 
     public function create()
@@ -59,7 +122,7 @@ class DriverController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => 'driver',
-            'dispatcher_id' => auth()->id(),
+            'dispatcher_id' => auth()->user()->companyId(),
             'phone_number' => $request->phone_number,
             'profile_image' => $profileImagePath,
         ]);
@@ -84,7 +147,7 @@ class DriverController extends Controller
     {
         // Enforce ownership: only driver belonging to this dispatcher
         $driver = User::where('role', 'driver')
-            ->where('dispatcher_id', auth()->id())
+            ->where('dispatcher_id', auth()->user()->companyId())
             ->with('metas')
             ->findOrFail($id);
 
@@ -95,7 +158,7 @@ class DriverController extends Controller
     {
         // Enforce ownership
         $driver = User::where('role', 'driver')
-            ->where('dispatcher_id', auth()->id())
+            ->where('dispatcher_id', auth()->user()->companyId())
             ->findOrFail($id);
 
         $request->validate([
@@ -149,7 +212,7 @@ class DriverController extends Controller
     {
         // Enforce ownership
         $driver = User::where('role', 'driver')
-            ->where('dispatcher_id', auth()->id())
+            ->where('dispatcher_id', auth()->user()->companyId())
             ->findOrFail($id);
 
         if ($driver->profile_image) {

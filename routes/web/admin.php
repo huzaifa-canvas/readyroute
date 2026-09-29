@@ -1,9 +1,12 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Web\Admin\DashboardController;
-use App\Http\Controllers\Web\Admin\UserController;
 use App\Http\Controllers\Web\Admin\CompanyController;
+use App\Http\Controllers\Web\Admin\DashboardController;
+use App\Http\Controllers\Web\Admin\RoleController;
+use App\Http\Controllers\Web\Admin\SecurityController;
+use App\Http\Controllers\Web\Admin\SubscriptionController;
+use App\Http\Controllers\Web\Admin\UserController;
 
 // ═══════════════════════════════════════════════════
 // ADMIN WEB ROUTES
@@ -22,20 +25,42 @@ Route::prefix('admin')->middleware(['auth', 'role:admin'])->group(function () {
     Route::put('user/update/{id}', [UserController::class, 'update'])->name('admin.user.update');
     Route::delete('user/delete/{id}', [UserController::class, 'destroy'])->name('admin.user.delete');
 
-    // Company Management (Dispatchers as Companies)
+    // ── Company Management ────────────────────────
+    // Archived must be declared before the {id} routes, or "archived" is
+    // swallowed as a company id.
     Route::get('companies', [CompanyController::class, 'index'])->name('admin.company.list');
+    Route::get('companies/archived', [CompanyController::class, 'archived'])->name('admin.company.archived');
     Route::get('companies/create', [CompanyController::class, 'create'])->name('admin.company.create');
     Route::post('companies/store', [CompanyController::class, 'store'])->name('admin.company.store');
+
+    Route::get('companies/{id}', [CompanyController::class, 'show'])->whereNumber('id')->name('admin.company.show');
+    Route::get('companies/{id}/edit', [CompanyController::class, 'edit'])->whereNumber('id')->name('admin.company.edit');
+    Route::put('companies/{id}', [CompanyController::class, 'update'])->whereNumber('id')->name('admin.company.update');
+
+    Route::post('companies/{id}/suspend', [CompanyController::class, 'suspend'])->whereNumber('id')->name('admin.company.suspend');
+    Route::post('companies/{id}/activate', [CompanyController::class, 'activate'])->whereNumber('id')->name('admin.company.activate');
+    Route::post('companies/{id}/restore', [CompanyController::class, 'restore'])->whereNumber('id')->name('admin.company.restore');
+    Route::delete('companies/{id}/force', [CompanyController::class, 'forceDelete'])->whereNumber('id')->name('admin.company.force-delete');
     Route::delete('companies/delete/{id}', [CompanyController::class, 'destroy'])->name('admin.company.delete');
 
-    // SaaS Subscription & Plans
-    Route::get('subscription', [\App\Http\Controllers\Web\Admin\SubscriptionController::class, 'index'])->name('admin.subscription');
-    Route::get('subscription/create', [\App\Http\Controllers\Web\Admin\SubscriptionController::class, 'create'])->name('admin.subscription.create');
-    Route::post('subscription/store', [\App\Http\Controllers\Web\Admin\SubscriptionController::class, 'store'])->name('admin.subscription.store');
-    Route::get('subscription/edit/{id}', [\App\Http\Controllers\Web\Admin\SubscriptionController::class, 'edit'])->name('admin.subscription.edit');
-    Route::put('subscription/update/{id}', [\App\Http\Controllers\Web\Admin\SubscriptionController::class, 'update'])->name('admin.subscription.update');
-    Route::delete('subscription/delete/{id}', [\App\Http\Controllers\Web\Admin\SubscriptionController::class, 'destroy'])->name('admin.subscription.delete');
+    // ── Role Management ───────────────────────────
+    Route::get('roles', [RoleController::class, 'index'])->name('admin.role.list');
+    Route::get('roles/create', [RoleController::class, 'create'])->name('admin.role.create');
+    Route::post('roles', [RoleController::class, 'store'])->name('admin.role.store');
+    Route::get('roles/{id}/edit', [RoleController::class, 'edit'])->whereNumber('id')->name('admin.role.edit');
+    Route::put('roles/{id}', [RoleController::class, 'update'])->whereNumber('id')->name('admin.role.update');
+    Route::delete('roles/{id}', [RoleController::class, 'destroy'])->whereNumber('id')->name('admin.role.delete');
 
-    // Platform Security (My Profile & Security)
-    Route::get('security', [\App\Http\Controllers\Web\Dispatcher\ProfileController::class, 'index'])->name('admin.security');
+    // SaaS Subscription & Plans
+    Route::get('subscription', [SubscriptionController::class, 'index'])->name('admin.subscription');
+    Route::get('subscription/create', [SubscriptionController::class, 'create'])->name('admin.subscription.create');
+    Route::post('subscription/store', [SubscriptionController::class, 'store'])->name('admin.subscription.store');
+    Route::get('subscription/edit/{id}', [SubscriptionController::class, 'edit'])->name('admin.subscription.edit');
+    Route::put('subscription/update/{id}', [SubscriptionController::class, 'update'])->name('admin.subscription.update');
+    Route::delete('subscription/delete/{id}', [SubscriptionController::class, 'destroy'])->name('admin.subscription.delete');
+
+    // ── Platform Security ─────────────────────────
+    Route::get('security', [SecurityController::class, 'index'])->name('admin.security');
+    Route::post('security/password', [SecurityController::class, 'updatePassword'])->name('admin.security.password');
+    Route::post('security/sessions', [SecurityController::class, 'signOutOtherSessions'])->name('admin.security.sessions');
 });

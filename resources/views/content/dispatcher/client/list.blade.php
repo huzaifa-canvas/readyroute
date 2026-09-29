@@ -48,7 +48,7 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start mb-2">
-          <h5 class="card-title fw-bold mb-0 text-truncate" title="{{ $client->full_name }}">{{ $client->full_name }}</h5>
+          <h5 class="card-title fw-bold mb-0 text-truncate" title="{{ $client->full_name }}"><a href="{{ route('dispatcher.client.show', $client->id) }}" class="text-heading text-decoration-none stretched-link-none">{{ $client->full_name }}</a></h5>
           @if($client->funding_type)
             <span class="badge bg-label-primary rounded-pill px-3 py-1 text-capitalize">{{ $client->funding_type }}</span>
           @endif
@@ -83,8 +83,9 @@
         
         <div class="d-flex justify-content-between align-items-center mt-4">
           <div class="d-flex gap-2 w-100">
-            <a href="{{ route('dispatcher.client.edit', $client->id) }}" class="btn btn-outline-primary flex-grow-1" style="flex-basis: 50%;">Edit</a>
-            <form action="{{ route('dispatcher.client.delete', $client->id) }}" method="POST" class="flex-grow-1" style="flex-basis: 50%;">
+            <a href="{{ route('dispatcher.client.show', $client->id) }}" class="btn btn-primary flex-grow-1" style="flex-basis: 34%;">View</a>
+            <a href="{{ route('dispatcher.client.edit', $client->id) }}" class="btn btn-outline-primary flex-grow-1" style="flex-basis: 33%;">Edit</a>
+            <form action="{{ route('dispatcher.client.delete', $client->id) }}" method="POST" class="flex-grow-1" style="flex-basis: 33%;">
               @csrf
               @method('DELETE')
               <button type="submit" class="btn btn-outline-danger w-100" onclick="return confirm('Are you sure you want to delete this client?')">

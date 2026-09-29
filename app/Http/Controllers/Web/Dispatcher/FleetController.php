@@ -13,7 +13,7 @@ class FleetController extends Controller
     {
         $dispatcher = auth()->user();
 
-        $query = Vehicle::where('dispatcher_id', $dispatcher->id);
+        $query = Vehicle::where('dispatcher_id', $dispatcher->companyId());
 
         // Filter by status
         if ($request->filled('status')) {
@@ -31,7 +31,7 @@ class FleetController extends Controller
 
         $vehicles = $query->latest()->paginate(15)->withQueryString();
         
-        $totalVehicles = Vehicle::where('dispatcher_id', $dispatcher->id)->count();
+        $totalVehicles = Vehicle::where('dispatcher_id', $dispatcher->companyId())->count();
 
         return view('content.dispatcher.fleet.list', compact('vehicles', 'totalVehicles'));
     }
@@ -61,7 +61,7 @@ class FleetController extends Controller
         }
 
         Vehicle::create([
-            'dispatcher_id' => auth()->id(),
+            'dispatcher_id' => auth()->user()->companyId(),
             'name' => $request->name,
             'image' => $imagePath,
             'make_model_year' => $request->make_model_year,
@@ -79,14 +79,14 @@ class FleetController extends Controller
 
     public function edit($id)
     {
-        $vehicle = Vehicle::where('dispatcher_id', auth()->id())->findOrFail($id);
+        $vehicle = Vehicle::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
         
         return view('content.dispatcher.fleet.form', compact('vehicle'));
     }
 
     public function update(Request $request, $id)
     {
-        $vehicle = Vehicle::where('dispatcher_id', auth()->id())->findOrFail($id);
+        $vehicle = Vehicle::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
 
         $request->validate([
             'name' => 'required|string|max:255',
@@ -126,7 +126,7 @@ class FleetController extends Controller
 
     public function destroy($id)
     {
-        $vehicle = Vehicle::where('dispatcher_id', auth()->id())->findOrFail($id);
+        $vehicle = Vehicle::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
         
         if ($vehicle->image && Storage::disk('public')->exists($vehicle->image)) {
             Storage::disk('public')->delete($vehicle->image);

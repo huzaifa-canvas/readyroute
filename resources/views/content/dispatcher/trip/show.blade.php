@@ -53,6 +53,64 @@
   </div>
 </div>
 
+{{-- Passenger tracking link.
+     Minted when the driver sets off. Until an SMS provider is connected the
+     dispatcher passes it on by hand, which is why it is copyable here. --}}
+@php($trackingUrl = $trip->public_token ? route('track.show', $trip->public_token) : null)
+
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-3">
+      <div class="flex-grow-1 min-w-0">
+        <h6 class="mb-1">
+          <i class="ti tabler-map-pin-share me-1 text-primary"></i>Passenger tracking link
+        </h6>
+        @if($trackingUrl)
+          <p class="text-muted small mb-0">
+            Send this to {{ $trip->passengerName() }}. No app or login needed — it opens in any phone browser
+            and shows the vehicle's position, the driver and an ETA.
+          </p>
+        @else
+          <p class="text-muted small mb-0">
+            The link is created automatically when the driver marks themselves en route.
+            You can also create it now to send in advance.
+          </p>
+        @endif
+      </div>
+
+      <div class="flex-shrink-0" style="min-width: 0;">
+        @if($trackingUrl)
+          <div class="input-group">
+            <input type="text" class="form-control" id="trackingLink" readonly
+                   value="{{ $trackingUrl }}" aria-label="Passenger tracking link"
+                   style="min-width: 0;" />
+            <button class="btn btn-primary" type="button" id="copyTracking">
+              <i class="ti tabler-copy me-1"></i>Copy
+            </button>
+            <a class="btn btn-label-primary" href="{{ $trackingUrl }}" target="_blank" rel="noopener"
+               aria-label="Open the tracking page">
+              <i class="ti tabler-external-link"></i>
+            </a>
+          </div>
+          @if($trip->phone_number)
+            <a class="btn btn-sm btn-text-primary p-0 mt-2"
+               href="sms:{{ $trip->phone_number }}?&body={{ rawurlencode('Track your ride: ' . $trackingUrl) }}">
+              <i class="ti tabler-message me-1"></i>Open in messages to {{ $trip->phone_number }}
+            </a>
+          @endif
+        @else
+          <form method="POST" action="{{ route('dispatcher.trip.tracking-link', $trip->id) }}">
+            @csrf
+            <button type="submit" class="btn btn-label-primary">
+              <i class="ti tabler-link-plus me-1"></i>Create link
+            </button>
+          </form>
+        @endif
+      </div>
+    </div>
+  </div>
+</div>
+
 {{-- Row 1: Passenger Info & Route --}}
 <div class="row g-4 mb-4">
   {{-- Passenger Info Card --}}
@@ -232,4 +290,28 @@
   </div>
 </div>
 
+@endsection
+
+@section('page-script')
+<script>
+  (function () {
+    var button = document.getElementById('copyTracking');
+    var field  = document.getElementById('trackingLink');
+    if (!button || !field) return;
+
+    button.addEventListener('click', async function () {
+      try {
+        await navigator.clipboard.writeText(field.value);
+      } catch (error) {
+        // Older browsers, or a page not served over HTTPS.
+        field.select();
+        document.execCommand('copy');
+      }
+
+      var original = button.innerHTML;
+      button.innerHTML = '<i class="ti tabler-check me-1"></i>Copied';
+      setTimeout(function () { button.innerHTML = original; }, 1800);
+    });
+  })();
+</script>
 @endsection

@@ -50,6 +50,8 @@ class Trip extends Model
         'actual_distance',
         'actual_duration_min',
         'was_on_time',
+        'public_token',
+        'tracking_sent_at',
     ];
 
     protected $casts = [
@@ -70,7 +72,34 @@ class Trip extends Model
         'actual_distance' => 'decimal:2',
         'actual_duration_min' => 'integer',
         'was_on_time' => 'boolean',
+        'tracking_sent_at' => 'datetime',
     ];
+
+    /**
+     * Incidents and SOS alerts raised on this trip.
+     */
+    public function incidents()
+    {
+        return $this->hasMany(TripIncident::class)->orderByDesc('created_at');
+    }
+
+    /**
+     * Mint the token that unlocks this trip's public tracking page, reusing
+     * one if it already has it so an SMS sent earlier keeps working.
+     */
+    public function trackingToken(): string
+    {
+        if (blank($this->public_token)) {
+            $this->forceFill(['public_token' => \Illuminate\Support\Str::random(48)])->save();
+        }
+
+        return $this->public_token;
+    }
+
+    public function trackingUrl(): string
+    {
+        return route('track.show', $this->trackingToken());
+    }
 
     public function dispatcher()
     {

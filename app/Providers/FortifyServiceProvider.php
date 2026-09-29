@@ -48,6 +48,39 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        /*
+         * Suspending an account has to actually lock it out. Sanctum tokens
+         * are revoked by User::suspend(), but the web guard has its own door,
+         * so credentials are checked here as well — otherwise a suspended
+         * company or panel user simply logs back in.
+         */
+        Fortify::authenticateUsing(function (Request $request) {
+            $user = \App\Models\User::where('email', $request->email)->first();
+
+            if (! $user || ! \Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
+                return null;
+            }
+
+            if ($user->isSuspended()) {
+                throw ValidationException::withMessages([
+                    'email' => ['This account has been suspended. Please contact your administrator.'],
+                ]);
+            }
+
+            // A company being suspended takes its staff offline with it.
+            if ($user->dispatcher_id) {
+                $company = \App\Models\User::withTrashed()->find($user->dispatcher_id);
+
+                if ($company && ($company->isSuspended() || $company->trashed())) {
+                    throw ValidationException::withMessages([
+                        'email' => ['Your company account is not active. Please contact support.'],
+                    ]);
+                }
+            }
+
+            return $user;
+        });
+
         Fortify::createUsersUsing(CreateNewUser::class);
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);

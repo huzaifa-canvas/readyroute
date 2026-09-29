@@ -16,7 +16,13 @@ if ($user && $user->isAdmin()) {
             'url' => 'admin/companies',
             'name' => 'Company Management',
             'icon' => 'menu-icon icon-base ti tabler-building',
-            'slug' => ['admin.company.list', 'admin.company.create']
+            'slug' => ['admin.company.list', 'admin.company.create', 'admin.company.show', 'admin.company.edit', 'admin.company.archived']
+        ],
+        (object)[
+            'url' => 'admin/roles',
+            'name' => 'Role Management',
+            'icon' => 'menu-icon icon-base ti tabler-id-badge-2',
+            'slug' => ['admin.role.list', 'admin.role.create', 'admin.role.edit']
         ],
         (object)[
             'url' => 'admin/subscription',
@@ -41,23 +47,27 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'name' => 'Trip Management',
+            'permission' => 'trips.view',
             'icon' => 'menu-icon icon-base ti tabler-layout-grid',
             'slug' => 'dispatcher.trip',
             'submenu' => [
                 (object)[
                     'url' => 'dispatcher/trip/list',
+                    'permission' => 'trips.view',
                     'name' => 'Trip List',
                     'icon' => 'menu-icon icon-base ti tabler-file-text',
                     'slug' => ['dispatcher.trip.list', 'dispatcher.trip.details', 'dispatcher.trip.edit']
                 ],
                 (object)[
                     'url' => 'dispatcher/trip/calendar',
+                    'permission' => 'trips.view',
                     'name' => 'Calendar View',
                     'icon' => 'menu-icon icon-base ti tabler-calendar',
                     'slug' => 'dispatcher.trip.calendar'
                 ],
                 (object)[
                     'url' => 'dispatcher/trip/create',
+                    'permission' => 'trips.create',
                     'name' => 'Create Trip',
                     'icon' => 'menu-icon icon-base ti tabler-plus',
                     'slug' => 'dispatcher.trip.create'
@@ -66,39 +76,73 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'url' => 'dispatcher/live-map',
+            'permission' => 'live_map.view',
             'name' => 'Live Map Operations',
             'icon' => 'menu-icon icon-base ti tabler-clipboard-data',
             'slug' => 'dispatcher.live-map'
         ],
         (object)[
             'url' => 'dispatcher/auto-dispatch',
+            'permission' => 'auto_dispatch.run',
             'name' => 'Smart Auto-Dispatch',
             'icon' => 'menu-icon icon-base ti tabler-route-2',
             'slug' => 'dispatcher.auto-dispatch'
         ],
         (object)[
             'url' => 'dispatcher/fleet',
+            'permission' => 'fleet.view',
             'name' => 'Fleet Management',
             'icon' => 'menu-icon icon-base ti tabler-chart-bar',
             'slug' => 'dispatcher.fleet.index'
         ],
         (object)[
             'url' => 'dispatcher/driver/list',
+            'permission' => 'drivers.view',
             'name' => 'Driver Management',
             'icon' => 'menu-icon icon-base ti tabler-users',
             'slug' => 'dispatcher.driver'
         ],
         (object)[
             'url' => 'dispatcher/client',
+            'permission' => 'clients.view',
             'name' => 'Client Profiles',
             'icon' => 'menu-icon icon-base ti tabler-user-square',
-            'slug' => 'dispatcher.client.index'
+            'slug' => ['dispatcher.client.index', 'dispatcher.client.show', 'dispatcher.client.create', 'dispatcher.client.edit']
+        ],
+        (object)[
+            'url' => 'dispatcher/messages',
+            'permission' => 'messages.view',
+            'name' => 'Driver Messages',
+            'icon' => 'menu-icon icon-base ti tabler-message-circle',
+            'slug' => ['dispatcher.messages.index', 'dispatcher.messages.thread']
+        ],
+        (object)[
+            'url' => 'dispatcher/incidents',
+            'permission' => 'incidents.view',
+            'name' => 'Incidents & Alerts',
+            'icon' => 'menu-icon icon-base ti tabler-urgent',
+            'slug' => ['dispatcher.incidents.index', 'dispatcher.incidents.show']
         ],
         (object)[
             'url' => 'dispatcher/compliance',
+            'permission' => 'drivers.view',
             'name' => 'Compliance Center',
             'icon' => 'menu-icon icon-base ti tabler-shield-check',
-            'slug' => 'dispatcher.compliance'
+            'slug' => ['dispatcher.compliance', 'dispatcher.compliance.driver']
+        ],
+        (object)[
+            'url' => 'dispatcher/reports',
+            'permission' => 'reports.view',
+            'name' => 'Reports',
+            'icon' => 'menu-icon icon-base ti tabler-chart-histogram',
+            'slug' => 'dispatcher.reports'
+        ],
+        (object)[
+            'url' => 'dispatcher/billing',
+            'permission' => 'billing.view',
+            'name' => 'Billing & Claims',
+            'icon' => 'menu-icon icon-base ti tabler-file-dollar',
+            'slug' => ['dispatcher.billing.index', 'dispatcher.billing.show', 'dispatcher.billing.create', 'dispatcher.billing.unbilled']
         ],
         (object)[
             'url' => 'dispatcher/subscription',
@@ -107,15 +151,66 @@ if ($user && $user->isAdmin()) {
             'slug' => 'dispatcher.subscription'
         ],
         (object)[
-            'url' => 'dispatcher/settings',
-            'name' => 'Settings & Reports',
+            'name' => 'Settings',
             'icon' => 'menu-icon icon-base ti tabler-settings',
-            'slug' => 'dispatcher.settings'
+            'slug' => ['dispatcher.settings', 'dispatcher.users'],
+            'submenu' => [
+                (object)[
+                    'url' => 'dispatcher/settings',
+                    'permission' => 'settings.manage',
+                    'name' => 'Company Settings',
+                    'icon' => 'menu-icon icon-base ti tabler-adjustments',
+                    'slug' => 'dispatcher.settings'
+                ],
+                (object)[
+                    'url' => 'dispatcher/users',
+                    'permission' => 'users.manage',
+                    'name' => 'System Users',
+                    'icon' => 'menu-icon icon-base ti tabler-users-group',
+                    'slug' => ['dispatcher.users.index', 'dispatcher.users.role.create', 'dispatcher.users.role.edit']
+                ],
+                (object)[
+                    'url' => 'dispatcher/profile',
+                    'name' => 'My Profile',
+                    'icon' => 'menu-icon icon-base ti tabler-user',
+                    'slug' => 'dispatcher.profile.index'
+                ],
+            ]
         ],
     ];
 } else {
     $menuItems = isset($menuData[0]->menu) ? $menuData[0]->menu : [];
 }
+
+/*
+ * Hide what the signed-in user's role would refuse.
+ *
+ * The routes already return 403, but a menu that lists them sends people into
+ * a wall. Admins and company owners pass everything, so this only ever trims
+ * the sidebar for added panel staff. A parent whose children are all hidden
+ * disappears with them rather than opening onto nothing.
+ */
+$allowed = function ($item) use ($user) {
+    if (! $user) {
+        return false;
+    }
+
+    return empty($item->permission) || $user->hasPermission($item->permission);
+};
+
+$menuItems = collect($menuItems)
+    ->filter($allowed)
+    ->map(function ($item) use ($allowed) {
+        if (! empty($item->submenu)) {
+            $item = clone $item;
+            $item->submenu = collect($item->submenu)->filter($allowed)->values()->all();
+        }
+
+        return $item;
+    })
+    ->filter(fn ($item) => empty($item->url) ? ! empty($item->submenu) : true)
+    ->values()
+    ->all();
 @endphp
 
 <aside id="layout-menu" class="layout-menu menu-vertical menu" @foreach ($configData['menuAttributes'] as $attribute => $value) {{ $attribute }}="{{ $value }}" @endforeach>

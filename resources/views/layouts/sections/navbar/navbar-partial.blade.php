@@ -31,10 +31,23 @@
 @endif
 
 <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
+
+  {{-- Search palette. The toggler is all Vuexy needs; main.js builds the
+       Ctrl+K popup and fills it from /assets/json/search-vertical.json,
+       which this app serves per role. --}}
+  <div class="navbar-nav align-items-center flex-grow-1">
+    <div class="nav-item navbar-search-wrapper px-md-0 px-2 mb-0 w-100">
+      <a class="nav-item nav-link search-toggler d-flex align-items-center px-0" href="javascript:void(0);">
+        <span class="d-inline-block text-body-secondary fw-normal" id="autocomplete"></span>
+      </a>
+    </div>
+  </div>
+
+  <ul class="navbar-nav flex-row align-items-center ms-auto">
+
   @if ($configData['hasCustomizer'] == true)
     <!-- Style Switcher -->
-    <div class="navbar-nav align-items-center">
-      <li class="nav-item dropdown me-2 me-xl-0">
+    <li class="nav-item dropdown me-2 me-xl-1">
         <a class="nav-link dropdown-toggle hide-arrow" id="nav-theme" href="javascript:void(0);"
           data-bs-toggle="dropdown">
           <i class="icon-base ti tabler-sun icon-md theme-icon-active"></i>
@@ -62,10 +75,133 @@
           </li>
         </ul>
       </li>
-    </div>
     <!-- / Style Switcher-->
   @endif
-  <ul class="navbar-nav flex-row align-items-center ms-auto">
+
+
+    @php($navNotifications = auth()->check() ? auth()->user()->notifications()->latest()->limit(7)->get() : collect())
+    @php($navUnread = $navNotifications->whereNull('read_at')->count())
+
+    {{-- Driver chat and notifications belong to a company. An admin has no
+         company, so these are dispatcher-only; the search palette stays for
+         both, because it is built per role. --}}
+    @if(auth()->check() && auth()->user()->isDispatcher())
+
+    @php($navUnreadMessages = auth()->check()
+        ? \App\Models\Message::where('dispatcher_id', auth()->user()->companyId())
+            ->where('receiver_id', auth()->user()->companyId())
+            ->whereNull('read_at')->count()
+        : 0)
+
+    <!-- Driver messages -->
+    <li class="nav-item me-2 me-xl-1">
+      <a class="nav-link btn btn-icon btn-text-secondary rounded-pill"
+         href="{{ route('dispatcher.messages.index') }}"
+         aria-label="Driver messages" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Driver messages">
+        <span class="position-relative">
+          <i class="icon-base ti tabler-message-circle icon-22px text-heading"></i>
+          {{-- Hidden at zero rather than removed, so the poller can reveal it
+               without rebuilding the markup. --}}
+          <span id="navMessageCount"
+                class="badge rounded-pill bg-danger badge-center h-px-20 w-px-20 position-absolute top-0 start-100 translate-middle {{ $navUnreadMessages > 0 ? '' : 'd-none' }}"
+                style="font-size:.6875rem;">{{ $navUnreadMessages > 99 ? '99+' : $navUnreadMessages }}</span>
+        </span>
+      </a>
+    </li>
+    <!--/ Driver messages -->
+
+    <!-- Notifications -->
+    <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-2 me-xl-1">
+      <a class="nav-link dropdown-toggle hide-arrow btn btn-icon btn-text-secondary rounded-pill"
+         href="javascript:void(0);" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+         aria-expanded="false" aria-label="Notifications">
+        <span class="position-relative">
+          <i class="icon-base ti tabler-bell icon-22px text-heading"></i>
+          <span id="navNotificationCount"
+                class="badge rounded-pill bg-danger badge-center h-px-20 w-px-20 position-absolute top-0 start-100 translate-middle {{ $navUnread > 0 ? '' : 'd-none' }}"
+                style="font-size:.6875rem;">{{ $navUnread > 99 ? '99+' : $navUnread }}</span>
+        </span>
+      </a>
+
+      <ul class="dropdown-menu dropdown-menu-end p-0">
+        <li class="dropdown-menu-header border-bottom">
+          <div class="dropdown-header d-flex align-items-center py-3">
+            <h6 class="mb-0 me-auto">Notification</h6>
+            <div class="d-flex align-items-center h6 mb-0">
+              <span id="navNotificationNew" class="badge bg-label-primary me-2 {{ $navUnread > 0 ? '' : 'd-none' }}">{{ $navUnread }} New</span>
+              @if($navUnread > 0)
+                <form method="POST" action="{{ route('dispatcher.notifications.read-all') }}" class="d-inline">
+                  @csrf
+                  <button type="submit" class="dropdown-notifications-all p-2 btn btn-icon border-0 bg-transparent"
+                          data-bs-toggle="tooltip" data-bs-placement="top" title="Mark all as read"
+                          aria-label="Mark all as read">
+                    <i class="icon-base ti tabler-mail-opened text-heading"></i>
+                  </button>
+                </form>
+              @endif
+            </div>
+          </div>
+        </li>
+
+        <li class="dropdown-notifications-list scrollable-container">
+          <ul class="list-group list-group-flush">
+            @forelse($navNotifications as $note)
+              @php($kind = $note->data['kind'] ?? 'general')
+              @php($data = $note->data['data'] ?? [])
+              @php($icon = match ($kind) {
+                    'sos'            => ['tabler-urgent', 'danger'],
+                    'incident'       => ['tabler-alert-triangle', 'warning'],
+                    'new_message'    => ['tabler-message-circle', 'info'],
+                    'trip_added'     => ['tabler-calendar-plus', 'primary'],
+                    'route_change'   => ['tabler-route-2', 'warning'],
+                    'trip_cancelled' => ['tabler-calendar-x', 'danger'],
+                    default          => ['tabler-bell', 'secondary'],
+                  })
+              @php($target = match (true) {
+                    ! empty($data['incident_id']) => route('dispatcher.incidents.show', $data['incident_id']),
+                    ! empty($data['trip_id'])     => route('dispatcher.trip.details', $data['trip_id']),
+                    ! empty($data['driver_id'])   => route('dispatcher.messages.index', ['driver' => $data['driver_id']]),
+                    default                       => route('dispatcher.notifications.index'),
+                  })
+
+              <li class="list-group-item list-group-item-action dropdown-notifications-item {{ $note->read_at ? 'marked-as-read' : '' }}">
+                <a href="{{ $target }}" class="d-flex text-body text-decoration-none">
+                  <div class="flex-shrink-0 me-3">
+                    <div class="avatar">
+                      <span class="avatar-initial rounded-circle bg-label-{{ $icon[1] }}">
+                        <i class="icon-base ti {{ $icon[0] }}"></i>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="flex-grow-1">
+                    <h6 class="small mb-1">{{ $note->data['title'] ?? 'Notification' }}</h6>
+                    <small class="mb-1 d-block text-body">{{ \Illuminate\Support\Str::limit($note->data['body'] ?? '', 64) }}</small>
+                    <small class="text-body-secondary">{{ $note->created_at->diffForHumans() }}</small>
+                  </div>
+                </a>
+              </li>
+            @empty
+              <li class="list-group-item text-center py-5 text-body-secondary">
+                <i class="icon-base ti tabler-bell-off icon-32px d-block mb-2"></i>
+                <small>Nothing yet</small>
+              </li>
+            @endforelse
+          </ul>
+        </li>
+
+        <li class="border-top">
+          <div class="d-grid p-4">
+            <a class="btn btn-primary btn-sm d-flex" href="{{ route('dispatcher.notifications.index') }}">
+              <small class="align-middle">View all notifications</small>
+            </a>
+          </div>
+        </li>
+      </ul>
+    </li>
+    <!--/ Notifications -->
+
+    @endif
+
     <!-- User -->
     <li class="nav-item navbar-dropdown dropdown-user dropdown">
       <a class="nav-link dropdown-toggle hide-arrow p-0" href="javascript:void(0);" data-bs-toggle="dropdown">
@@ -95,7 +231,7 @@
                 </h6>
                 <small class="text-body-secondary">
                   @if(Auth::check())
-                    {{ Auth::user()->email === 'admin@playmint.com' ? 'Admin' : 'Member' }}
+                    {{ Auth::user()->isAdmin() ? 'Administrator' : (Auth::user()->isCompanyOwner() ? 'Company Account' : (Auth::user()->accessRole?->name ?? 'Dispatcher')) }}
                   @else
                     Guest
                   @endif
@@ -107,20 +243,31 @@
         <li>
           <div class="dropdown-divider my-1 mx-n2"></div>
         </li>
+        @if(auth()->check() && auth()->user()->isDispatcher())
         <li>
           <a class="dropdown-item" href="{{ route('dispatcher.profile.index') }}">
             <i class="icon-base ti tabler-user me-3 icon-md"></i><span class="align-middle">My Profile</span> </a>
         </li>
+        @endif
 
+        @if(auth()->check() && auth()->user()->isDispatcher())
         <li>
-          <a class="dropdown-item" href="javascript:void(0);">
-            <span class="d-flex align-items-center align-middle">
-              <i class="flex-shrink-0 icon-base ti tabler-file-dollar me-3 icon-md"></i><span
-                class="flex-grow-1 align-middle">Billing</span>
-              <span class="flex-shrink-0 badge bg-danger d-flex align-items-center justify-content-center">4</span>
-            </span>
+          <a class="dropdown-item" href="{{ route('dispatcher.billing.index') }}">
+            <i class="icon-base ti tabler-file-dollar me-3 icon-md"></i><span class="align-middle">Billing &amp; Claims</span>
           </a>
         </li>
+        <li>
+          <a class="dropdown-item" href="{{ route('dispatcher.subscription') }}">
+            <i class="icon-base ti tabler-credit-card me-3 icon-md"></i><span class="align-middle">My Subscription</span>
+          </a>
+        </li>
+        @elseif(auth()->check() && auth()->user()->isAdmin())
+        <li>
+          <a class="dropdown-item" href="{{ route('admin.security') }}">
+            <i class="icon-base ti tabler-shield-lock me-3 icon-md"></i><span class="align-middle">Platform Security</span>
+          </a>
+        </li>
+        @endif
 
         <li>
           <div class="dropdown-divider my-1 mx-n2"></div>
@@ -151,3 +298,116 @@
     <!--/ User -->
   </ul>
 </div>
+
+{{-- Live navbar badges.
+     One request every 30 seconds refreshes the message count, the
+     notification count and, when the chat is open, the per-driver counts in
+     its sidebar. Dispatcher-only, because the endpoint is. --}}
+@if(auth()->check() && auth()->user()->isDispatcher())
+<script>
+  (function () {
+    var url = @json(route('dispatcher.navbar.summary'));
+
+    function paint(el, count) {
+      if (!el) return;
+      el.textContent = count > 99 ? '99+' : count;
+      el.classList.toggle('d-none', count < 1);
+    }
+
+    function title(base, count) {
+      document.title = count > 0 ? '(' + count + ') ' + base : base;
+    }
+
+    var baseTitle = document.title.replace(/^\(\d+\+?\)\s*/, '');
+
+    function renderNotifications(list) {
+      var container = document.querySelector('.dropdown-notifications-list .list-group');
+      if (!container || !list) return;
+
+      // Leave the open dropdown alone: replacing it under the cursor would
+      // move whatever the person is about to click.
+      if (document.querySelector('.dropdown-notifications .dropdown-menu.show')) return;
+
+      if (list.length === 0) return;
+
+      container.innerHTML = list.map(function (n) {
+        var icon = ({
+          sos: ['tabler-urgent', 'danger'],
+          incident: ['tabler-alert-triangle', 'warning'],
+          new_message: ['tabler-message-circle', 'info'],
+          trip_added: ['tabler-calendar-plus', 'primary'],
+          route_change: ['tabler-route-2', 'warning'],
+          trip_cancelled: ['tabler-calendar-x', 'danger']
+        })[n.kind] || ['tabler-bell', 'secondary'];
+
+        var div = document.createElement('div');
+        div.textContent = n.title;
+        var safeTitle = div.innerHTML;
+        div.textContent = n.body;
+        var safeBody = div.innerHTML;
+
+        return '<li class="list-group-item list-group-item-action dropdown-notifications-item' +
+               (n.is_read ? ' marked-as-read' : '') + '">' +
+                 '<a href="' + n.url + '" class="d-flex text-body text-decoration-none">' +
+                   '<div class="flex-shrink-0 me-3"><div class="avatar">' +
+                     '<span class="avatar-initial rounded-circle bg-label-' + icon[1] + '">' +
+                       '<i class="icon-base ti ' + icon[0] + '"></i></span>' +
+                   '</div></div>' +
+                   '<div class="flex-grow-1">' +
+                     '<h6 class="small mb-1">' + safeTitle + '</h6>' +
+                     '<small class="mb-1 d-block text-body">' + safeBody + '</small>' +
+                     '<small class="text-body-secondary">' + n.ago + '</small>' +
+                   '</div>' +
+                 '</a>' +
+               '</li>';
+      }).join('');
+    }
+
+    function renderDriverCounts(perDriver) {
+      // Only present while the chat page is open.
+      document.querySelectorAll('[data-unread-driver]').forEach(function (badge) {
+        var count = perDriver[badge.dataset.unreadDriver] || 0;
+        badge.textContent = count;
+        badge.classList.toggle('d-none', count < 1);
+      });
+    }
+
+    async function tick() {
+      // Nothing to refresh while the tab is in the background.
+      if (document.hidden) return;
+
+      try {
+        var response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!response.ok) return;
+
+        var data = (await response.json()).data;
+
+        paint(document.getElementById('navMessageCount'), data.messages.unread);
+        paint(document.getElementById('navNotificationCount'), data.notifications.unread);
+
+        var chip = document.getElementById('navNotificationNew');
+        if (chip) {
+          chip.textContent = data.notifications.unread + ' New';
+          chip.classList.toggle('d-none', data.notifications.unread < 1);
+        }
+
+        renderNotifications(data.notifications.recent);
+        renderDriverCounts(data.messages.per_driver || {});
+
+        // The tab title carries whichever queue needs attention most.
+        title(baseTitle, data.messages.unread + data.notifications.unread);
+      } catch (error) {
+        // A dropped poll is not worth surfacing; the next tick catches up.
+      }
+    }
+
+    setInterval(tick, 30000);
+
+    // Catch up immediately when the tab comes back rather than waiting out
+    // the rest of the interval.
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) tick();
+    });
+  })();
+</script>
+@endif

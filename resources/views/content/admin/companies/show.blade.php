@@ -1,0 +1,261 @@
+@extends('layouts/layoutMaster')
+
+@section('title', 'Manage — ' . $company->name)
+
+@section('content')
+<div class="container-xxl flex-grow-1 container-p-y">
+
+  @include('content.admin._partials.flash')
+
+  {{-- Breadcrumb --}}
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="{{ route('admin.company.list') }}">Companies</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ $company->name }}</li>
+    </ol>
+  </nav>
+
+  {{-- Archived banner --}}
+  @if($company->trashed())
+    <div class="alert alert-secondary d-flex flex-wrap align-items-center justify-content-between gap-2" role="alert">
+      <span>
+        <i class="ti tabler-archive me-2"></i>
+        This company is archived — it was removed on {{ $company->deleted_at->format('d M Y') }}.
+      </span>
+      <form action="{{ route('admin.company.restore', $company->id) }}" method="POST">
+        @csrf
+        <button type="submit" class="btn btn-sm btn-label-primary">
+          <i class="ti tabler-rotate me-1"></i>Restore
+        </button>
+      </form>
+    </div>
+  @elseif($company->isSuspended())
+    <div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2" role="alert">
+      <span>
+        <i class="ti tabler-ban me-2"></i>
+        Suspended {{ $company->suspended_at?->diffForHumans() }}.
+        @if($company->suspension_reason)
+          <span class="fw-semibold">Reason:</span> {{ $company->suspension_reason }}
+        @endif
+      </span>
+      <form action="{{ route('admin.company.activate', $company->id) }}" method="POST">
+        @csrf
+        <button type="submit" class="btn btn-sm btn-success">
+          <i class="ti tabler-player-play me-1"></i>Reactivate
+        </button>
+      </form>
+    </div>
+  @endif
+
+  {{-- Header card --}}
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="d-flex flex-column flex-md-row align-items-md-center gap-4">
+        <div class="avatar avatar-xl flex-shrink-0 mx-auto mx-md-0">
+          <img src="{{ $company->avatar_url }}" alt="{{ $company->name }}" class="rounded-circle" />
+        </div>
+
+        <div class="flex-grow-1 text-center text-md-start min-w-0">
+          <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-md-start gap-2 mb-1">
+            <h4 class="fw-bold text-heading mb-0 text-break">{{ $company->name }}</h4>
+            <span class="badge {{ $company->statusClass() }}">{{ $company->statusLabel() }}</span>
+          </div>
+          <div class="d-flex flex-wrap justify-content-center justify-content-md-start gap-3 text-muted small">
+            <span class="text-break"><i class="ti tabler-mail icon-xs me-1"></i>{{ $company->email }}</span>
+            @if($company->phone_number)
+              <span><i class="ti tabler-phone icon-xs me-1"></i>{{ $company->phone_number }}</span>
+            @endif
+            @if($company->getMeta('region'))
+              <span><i class="ti tabler-map-pin icon-xs me-1"></i>{{ $company->getMeta('region') }}</span>
+            @endif
+            <span><i class="ti tabler-calendar icon-xs me-1"></i>Joined {{ $company->created_at?->format('d M Y') }}</span>
+          </div>
+        </div>
+
+        @unless($company->trashed())
+        <div class="d-flex flex-wrap gap-2 justify-content-center justify-content-md-end">
+          <a href="{{ route('admin.company.edit', $company->id) }}" class="btn btn-primary">
+            <i class="ti tabler-edit me-1"></i>Edit
+          </a>
+          @if($company->isSuspended())
+            <form action="{{ route('admin.company.activate', $company->id) }}" method="POST">
+              @csrf
+              <button type="submit" class="btn btn-label-success"><i class="ti tabler-player-play me-1"></i>Reactivate</button>
+            </form>
+          @else
+            <button type="button" class="btn btn-label-warning" data-bs-toggle="modal" data-bs-target="#suspendModal">
+              <i class="ti tabler-ban me-1"></i>Suspend
+            </button>
+          @endif
+        </div>
+        @endunless
+      </div>
+    </div>
+  </div>
+
+  {{-- Stat tiles --}}
+  @php
+    $tiles = [
+      ['label' => 'Drivers',        'value' => $stats['drivers'],          'icon' => 'tabler-steering-wheel', 'colour' => 'primary'],
+      ['label' => 'Online now',     'value' => $stats['drivers_online'],   'icon' => 'tabler-broadcast',      'colour' => 'success'],
+      ['label' => 'Vehicles',       'value' => $stats['vehicles'],         'icon' => 'tabler-car',            'colour' => 'info'],
+      ['label' => 'Clients',        'value' => $stats['clients'],          'icon' => 'tabler-user-square',    'colour' => 'warning'],
+      ['label' => 'Trips total',    'value' => $stats['trips'],            'icon' => 'tabler-route',          'colour' => 'secondary'],
+      ['label' => 'Trips this month','value' => $stats['trips_this_month'],'icon' => 'tabler-calendar-stats', 'colour' => 'primary'],
+    ];
+  @endphp
+
+  <div class="row g-4 mb-4">
+    @foreach($tiles as $tile)
+    <div class="col-6 col-md-4 col-xl-2">
+      <div class="card h-100">
+        <div class="card-body text-center p-3">
+          <div class="avatar avatar-sm mx-auto mb-2">
+            <span class="avatar-initial rounded bg-label-{{ $tile['colour'] }}">
+              <i class="ti {{ $tile['icon'] }}"></i>
+            </span>
+          </div>
+          <h4 class="fw-bold mb-0">{{ $tile['value'] }}</h4>
+          <small class="text-muted">{{ $tile['label'] }}</small>
+        </div>
+      </div>
+    </div>
+    @endforeach
+  </div>
+
+  <div class="row g-4">
+    {{-- Recent trips --}}
+    <div class="col-12 col-lg-7">
+      <div class="card h-100">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h5 class="mb-0">Recent Trips</h5>
+          <span class="badge bg-label-secondary">{{ $recentTrips->count() }} shown</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover mb-0 align-middle">
+            <thead>
+              <tr>
+                <th>Trip</th>
+                <th class="d-none d-sm-table-cell">Driver</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody class="table-border-bottom-0">
+              @forelse($recentTrips as $trip)
+              @php($tripStatus = $trip->statusEnum())
+              <tr>
+                <td>
+                  <span class="fw-semibold d-block">{{ $trip->reference() }}</span>
+                  <small class="text-muted d-block text-truncate" style="max-width: 220px;">
+                    {{ $trip->passengerName() }}
+                  </small>
+                  <small class="text-muted d-sm-none">
+                    {{ $trip->driver?->name ?? 'Unassigned' }}
+                  </small>
+                </td>
+                <td class="d-none d-sm-table-cell">
+                  <span class="text-body">{{ $trip->driver?->name ?? '—' }}</span>
+                </td>
+                <td>
+                  <span class="badge {{ $tripStatus?->badgeClass() ?? 'bg-label-secondary' }}">
+                    {{ $tripStatus?->label() ?? 'Unknown' }}
+                  </span>
+                </td>
+              </tr>
+              @empty
+              <tr>
+                <td colspan="3" class="text-center py-4 text-muted">No trips yet.</td>
+              </tr>
+              @endforelse
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {{-- Panel staff --}}
+    <div class="col-12 col-lg-5">
+      <div class="card h-100">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h5 class="mb-0">Panel Users</h5>
+          <span class="badge bg-label-secondary">{{ $stats['staff'] }}</span>
+        </div>
+        <div class="card-body">
+          @forelse($staff as $member)
+            <div class="d-flex align-items-center gap-3 {{ ! $loop->last ? 'mb-4' : '' }}">
+              <div class="avatar avatar-sm flex-shrink-0">
+                <img src="{{ $member->avatar_url }}" alt="{{ $member->name }}" class="rounded-circle" />
+              </div>
+              <div class="min-w-0 flex-grow-1">
+                <span class="fw-semibold d-block text-truncate">{{ $member->name }}</span>
+                <small class="text-muted d-block text-truncate">{{ $member->email }}</small>
+              </div>
+              <span class="badge bg-label-primary flex-shrink-0">
+                {{ $member->accessRole?->name ?? 'No role' }}
+              </span>
+            </div>
+          @empty
+            <div class="text-center py-4 text-muted">
+              <i class="ti tabler-users fs-2 d-block mb-2 text-secondary"></i>
+              <p class="mb-0 small">
+                This company has not added any panel users yet.<br>
+                They manage their own team from the dispatcher panel.
+              </p>
+            </div>
+          @endforelse
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{-- Danger zone --}}
+  @unless($company->trashed())
+  <div class="card border-danger mt-4">
+    <div class="card-body d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+      <div>
+        <h6 class="mb-1 text-danger">Archive this company</h6>
+        <p class="mb-0 text-muted small">
+          The account is signed out and hidden from the list. Trips, drivers and clients are kept,
+          and the company can be restored at any time.
+        </p>
+      </div>
+      <form action="{{ route('admin.company.delete', $company->id) }}" method="POST" class="flex-shrink-0">
+        @csrf
+        @method('DELETE')
+        <button type="submit" class="btn btn-label-danger"
+                onclick="return confirm('Archive {{ $company->name }}?')">
+          <i class="ti tabler-archive me-1"></i>Archive
+        </button>
+      </form>
+    </div>
+  </div>
+  @endunless
+</div>
+
+{{-- Suspend modal --}}
+@unless($company->trashed() || $company->isSuspended())
+<div class="modal fade" id="suspendModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" action="{{ route('admin.company.suspend', $company->id) }}" method="POST">
+      @csrf
+      <div class="modal-header">
+        <h5 class="modal-title">Suspend {{ $company->name }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted">
+          The company keeps all its data but is signed out immediately and cannot log in until reactivated.
+        </p>
+        <label class="form-label" for="suspension_reason">Reason (optional)</label>
+        <input type="text" id="suspension_reason" name="suspension_reason" class="form-control"
+               maxlength="255" placeholder="e.g. Payment overdue" />
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-warning">Suspend</button>
+      </div>
+    </form>
+  </div>
+</div>
+@endunless
+@endsection

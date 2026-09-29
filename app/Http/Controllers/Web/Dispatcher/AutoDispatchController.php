@@ -11,7 +11,7 @@ class AutoDispatchController extends Controller
 {
     public function index()
     {
-        $dispatcherId = auth()->id();
+        $dispatcherId = auth()->user()->companyId();
 
         // Fetch all active & scheduled trips (both assigned & unassigned)
         $allTrips = Trip::with(['client', 'driver'])
@@ -38,7 +38,7 @@ class AutoDispatchController extends Controller
 
     public function optimize(Request $request)
     {
-        $dispatcherId = auth()->id();
+        $dispatcherId = auth()->user()->companyId();
 
         $unassignedTrips = Trip::where('dispatcher_id', $dispatcherId)
             ->whereNull('driver_id')

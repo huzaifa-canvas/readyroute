@@ -36,7 +36,32 @@ class TripResource extends JsonResource
                 'full_name'    => $this->passengerName(),
                 'phone_number' => $this->phone_number,
                 'member_id'    => $this->member_id,
+
+                // Standing information from the client profile: the address
+                // and requirements the dispatcher recorded once, rather than
+                // per trip.
+                'home_address' => $this->client?->home_address,
+                'funding_type' => $this->client?->funding_type,
+                'standing_notes' => $this->client?->special_notes,
+                'emergency_contact' => $this->client?->emergency_contact_name
+                    ? [
+                        'name'  => $this->client->emergency_contact_name,
+                        'phone' => $this->client->emergency_contact_phone,
+                    ]
+                    : null,
             ],
+
+            // Dated notes the dispatcher keeps on the client. Read-only here:
+            // a driver can never add or change one, and only notes flagged
+            // visible are sent.
+            'client_notes' => $this->client
+                ? $this->client->driverVisibleNotes->map(fn ($note) => [
+                    'id'         => $note->id,
+                    'body'       => $note->body,
+                    'author'     => $note->authorName(),
+                    'created_at' => $note->created_at->toIso8601String(),
+                ])->values()
+                : [],
 
             'status'       => $status?->value,
             'status_label' => $status?->label(),

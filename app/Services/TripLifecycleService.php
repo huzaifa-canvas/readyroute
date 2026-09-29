@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\Geo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -76,6 +77,16 @@ class TripLifecycleService
 
             if ($to === TripStatus::Completed) {
                 $this->finalise($trip);
+            }
+
+            /*
+             * The passenger's tracking link is minted the moment the driver
+             * sets off, which is what the design specifies. Delivery is a
+             * separate concern: until an SMS provider is configured the link
+             * simply exists, and the dispatcher passes it on by hand.
+             */
+            if ($to === TripStatus::EnRoute && blank($trip->public_token)) {
+                $trip->public_token = Str::random(48);
             }
 
             $trip->save();

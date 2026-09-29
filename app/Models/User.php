@@ -3,7 +3,9 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -11,7 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasFactory, Notifiable, HasApiTokens, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -25,6 +27,13 @@ class User extends Authenticatable
         'avatar',
         'profile_image',
         'role',
+        'role_id',
+        'status',
+        'subscription_plan_id',
+        'subscribed_at',
+        'renews_at',
+        'suspended_at',
+        'suspension_reason',
         'driver_code',
         'dispatcher_id',
         'phone_number',
@@ -62,6 +71,9 @@ class User extends Authenticatable
             'last_lat' => 'decimal:8',
             'last_lng' => 'decimal:8',
             'last_location_at' => 'datetime',
+            'suspended_at' => 'datetime',
+            'subscribed_at' => 'datetime',
+            'renews_at' => 'date',
         ];
     }
 
@@ -110,16 +122,186 @@ class User extends Authenticatable
     }
 
     /**
+     * Account status
+     *
+     * role says what kind of account this is; status says whether it may be
+     * used. A suspended account keeps all its data and can be brought back,
+     * which is what makes the admin's suspend action safe to use.
+     */
+    public function isSuspended(): bool
+    {
+        return $this->status === 'suspended';
+    }
+
+    public function isActive(): bool
+    {
+        return ! $this->isSuspended();
+    }
+
+    public function suspend(?string $reason = null): void
+    {
+        $this->forceFill([
+            'status'            => 'suspended',
+            'suspended_at'      => now(),
+            'suspension_reason' => $reason,
+        ])->save();
+
+        // A suspended account must not keep working through a token issued
+        // before the suspension.
+        $this->tokens()->delete();
+    }
+
+    public function activate(): void
+    {
+        $this->forceFill([
+            'status'            => 'active',
+            'suspended_at'      => null,
+            'suspension_reason' => null,
+        ])->save();
+    }
+
+    public function statusLabel(): string
+    {
+        return $this->isSuspended() ? 'Suspended' : 'Active';
+    }
+
+    public function statusClass(): string
+    {
+        return $this->isSuspended() ? 'bg-label-warning' : 'bg-label-success';
+    }
+
+    /**
+     * Permissions
+     *
+     * An admin is unconditionally allowed everything, and a dispatcher who
+     * owns the company is too — the finer roles exist for the staff they add
+     * beneath them, so a company owner without a role is not locked out of
+     * their own panel.
+     */
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        if ($this->isDispatcher() && ! $this->dispatcher_id) {
+            return true;
+        }
+
+        return (bool) $this->accessRole?->hasPermission($permission);
+    }
+
+    /**
+     * @param  array<int, string>  $permissions
+     */
+    public function hasAnyPermission(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ($this->hasPermission($permission)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Relationships
      */
+    /**
+     * The permission role, if one is assigned.
+     *
+     * Deliberately not named role(): `role` is already a column holding the
+     * coarse account type, and Eloquent resolves an attribute before a
+     * relationship — so $user->role must keep returning the string 'admin' /
+     * 'dispatcher' / 'driver' that the whole panel branches on.
+     */
+    public function accessRole()
+    {
+        return $this->belongsTo(Role::class, 'role_id');
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(DriverDocument::class, 'driver_id');
+    }
+
+    public function incidents()
+    {
+        return $this->hasMany(TripIncident::class, 'driver_id');
+    }
+
+    public function subscriptionPlan()
+    {
+        return $this->belongsTo(SubscriptionPlan::class, 'subscription_plan_id');
+    }
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class, 'dispatcher_id');
+    }
+
+    /**
+     * How much of the plan this company is using.
+     *
+     * A null limit is unlimited, so percent stays null rather than becoming a
+     * division by zero, and the bar renders as "no cap" instead of full.
+     *
+     * @return array<string, array{used:int, limit:?int, percent:?int}>
+     */
+    public function planUsage(): array
+    {
+        $plan      = $this->subscriptionPlan;
+        $companyId = $this->companyId();
+
+        $counts = [
+            'vehicle' => Vehicle::where('dispatcher_id', $companyId)->count(),
+            'driver'  => static::driversOf($companyId)->count(),
+            // Trips are counted for the current month, which is the period a
+            // monthly plan actually caps.
+            'trip'    => Trip::where('dispatcher_id', $companyId)
+                ->whereBetween('pickup_date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
+                ->count(),
+        ];
+
+        $usage = [];
+
+        foreach ($counts as $resource => $used) {
+            $limit = $plan?->limitFor($resource);
+
+            $usage[$resource] = [
+                'used'    => $used,
+                'limit'   => $limit,
+                'percent' => $limit ? min(100, (int) round($used / $limit * 100)) : null,
+            ];
+        }
+
+        return $usage;
+    }
+
     public function dispatcher()
     {
         return $this->belongsTo(User::class, 'dispatcher_id');
     }
 
+    /**
+     * The company's drivers.
+     *
+     * Constrained to the driver role because panel staff are stored under the
+     * same dispatcher_id; without this, every driver count would silently
+     * include office users.
+     */
     public function drivers()
     {
-        return $this->hasMany(User::class, 'dispatcher_id');
+        return $this->hasMany(User::class, 'dispatcher_id')->where('role', 'driver');
+    }
+
+    /**
+     * Panel users this company has added beneath itself.
+     */
+    public function staff()
+    {
+        return $this->hasMany(User::class, 'dispatcher_id')->where('role', 'dispatcher');
     }
 
     public function vehicles()
@@ -182,12 +364,46 @@ class User extends Authenticatable
     }
 
     /**
-     * A driver's own company. Dispatchers are their own company, which keeps
-     * tenant scoping uniform for both roles.
+     * The company this account belongs to.
+     *
+     * A dispatcher with no parent is the company itself. Staff added beneath
+     * one are also stored with role 'dispatcher' but carry a dispatcher_id,
+     * and must resolve to their employer rather than to themselves — otherwise
+     * every tenant-scoped query would hand them an empty panel of their own.
      */
     public function companyId(): ?int
     {
-        return $this->isDispatcher() ? $this->id : $this->dispatcher_id;
+        if ($this->isDispatcher()) {
+            return $this->dispatcher_id ?: $this->id;
+        }
+
+        return $this->dispatcher_id;
+    }
+
+    /**
+     * True for a top-level dispatcher account — a company, not its staff.
+     */
+    public function isCompanyOwner(): bool
+    {
+        return $this->isDispatcher() && ! $this->dispatcher_id;
+    }
+
+    /**
+     * Companies: dispatcher accounts with no parent.
+     */
+    public function scopeCompanies(Builder $query): Builder
+    {
+        return $query->where('role', 'dispatcher')->whereNull('dispatcher_id');
+    }
+
+    public function scopeStaffOf(Builder $query, int $companyId): Builder
+    {
+        return $query->where('role', 'dispatcher')->where('dispatcher_id', $companyId);
+    }
+
+    public function scopeDriversOf(Builder $query, int $companyId): Builder
+    {
+        return $query->where('role', 'driver')->where('dispatcher_id', $companyId);
     }
 
     /**

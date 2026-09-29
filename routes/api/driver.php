@@ -2,8 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Driver\AuthController;
+use App\Http\Controllers\Api\Driver\ComplianceController;
 use App\Http\Controllers\Api\Driver\DashboardController;
 use App\Http\Controllers\Api\Driver\HistoryController;
+use App\Http\Controllers\Api\Driver\IncidentController;
 use App\Http\Controllers\Api\Driver\InspectionController;
 use App\Http\Controllers\Api\Driver\LocationController;
 use App\Http\Controllers\Api\Driver\MessageController;
@@ -73,6 +75,19 @@ Route::prefix('driver')->group(function () {
         Route::get('/notifications', [NotificationController::class, 'index']);
         Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
         Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+
+        // Licences, medical cards and insurance (read-only for the driver)
+        Route::get('/compliance', [ComplianceController::class, 'index']);
+
+        // Incidents & the SOS panic button
+        Route::get('/incidents', [IncidentController::class, 'index']);
+        Route::post('/incidents', [IncidentController::class, 'store']);
+        Route::get('/incidents/{id}', [IncidentController::class, 'show'])->whereNumber('id');
+        Route::put('/incidents/{id}', [IncidentController::class, 'update'])->whereNumber('id');
+
+        // One tap, no form. Rate limited only enough to stop a stuck button
+        // flooding the office, never enough to block a real emergency.
+        Route::post('/sos', [IncidentController::class, 'sos'])->middleware('throttle:6,1');
 
         // Dispatch chat
         Route::get('/messages', [MessageController::class, 'index']);

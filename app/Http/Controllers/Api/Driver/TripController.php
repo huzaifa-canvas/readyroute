@@ -73,7 +73,7 @@ class TripController extends BaseDriverController
             return $this->notFound('Trip not found.');
         }
 
-        $trip->load(['vehicle', 'client']);
+        $trip->load(['vehicle', 'client.driverVisibleNotes.author']);
 
         $driver = $this->driver();
 

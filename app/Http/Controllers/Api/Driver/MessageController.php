@@ -119,6 +119,14 @@ class MessageController extends BaseDriverController
             $payload
         );
 
+        // The company room reaches panel staff too, who have their own user
+        // ids and would otherwise never see the message arrive.
+        $this->socket->queue(
+            SocketEmitter::dispatcherRoom($companyId),
+            'message:new',
+            $payload
+        );
+
         if ($dispatcher = User::find($companyId)) {
             $dispatcher->notify(new NewMessageNotification($message));
         }
