@@ -42,10 +42,29 @@ class DashboardController extends Controller
             ->take(6)
             ->get();
 
-        // If no trips exist in database, create demonstration collection for display
-        if ($upcomingTrips->isEmpty()) {
-            // Keep empty or let view handle demonstration
-        }
+        // 3. Points for the map preview, from real records only. A company
+        //    with nothing booked gets an empty map and is told so, rather
+        //    than a set of invented pins in another city.
+        $mapPoints = [
+            'pickups' => $upcomingTrips
+                ->filter(fn (Trip $trip) => $trip->pickup_lat !== null && $trip->pickup_lng !== null)
+                ->map(fn (Trip $trip) => [
+                    'lat'   => (float) $trip->pickup_lat,
+                    'lng'   => (float) $trip->pickup_lng,
+                    'label' => 'Pickup: ' . $trip->pickup_address,
+                ])
+                ->values(),
+
+            'drivers' => $totalDrivers
+                ->filter(fn (User $driver) => $driver->last_lat !== null && $driver->last_lng !== null)
+                ->map(fn (User $driver) => [
+                    'lat'    => (float) $driver->last_lat,
+                    'lng'    => (float) $driver->last_lng,
+                    'label'  => $driver->name . ($driver->isCurrentlyOnline() ? ' (online)' : ' (offline)'),
+                    'online' => $driver->isCurrentlyOnline(),
+                ])
+                ->values(),
+        ];
 
         return view('content.dispatcher.dashboard', compact(
             'activeTripsCount',
@@ -53,7 +72,8 @@ class DashboardController extends Controller
             'driversTotalCount',
             'pendingAssignmentsCount',
             'upcomingTrips',
-            'totalDrivers'
+            'totalDrivers',
+            'mapPoints'
         ));
     }
 
@@ -105,12 +125,43 @@ class DashboardController extends Controller
             ])
             ->values();
 
+        // Pickup and drop-off pins, built here rather than in the view: a
+        // closure this shape inside @json() is more than Blade's directive
+        // parser can follow.
+        $tripPoints = $trips->flatMap(function (Trip $trip) {
+            $points = [];
+
+            if ($trip->pickup_lat !== null && $trip->pickup_lng !== null) {
+                $points[] = [
+                    'kind'  => 'pickup',
+                    'lat'   => (float) $trip->pickup_lat,
+                    'lng'   => (float) $trip->pickup_lng,
+                    'title' => 'Pickup: ' . $trip->passengerName(),
+                    'note'  => $trip->pickup_address,
+                ];
+            }
+
+            if ($trip->dropoff_lat !== null && $trip->dropoff_lng !== null) {
+                $points[] = [
+                    'kind'  => 'dropoff',
+                    'lat'   => (float) $trip->dropoff_lat,
+                    'lng'   => (float) $trip->dropoff_lng,
+                    'title' => 'Drop-off: ' . $trip->passengerName(),
+                    'note'  => $trip->dropoff_address,
+                ];
+            }
+
+            return $points;
+        })->values();
+
         return view('content.dispatcher.live-map', compact(
             'trips',
             'drivers',
             'activeTripsCount',
             'onlineDriversCount',
             'driverPositions'
+        ,
+            'tripPoints'
         ));
     }
 }

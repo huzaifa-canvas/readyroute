@@ -23,6 +23,9 @@
 @stack('pricing-script')
 <!-- END: Pricing Modal JS-->
 
+{{-- The Background swatches, added to the template's customizer panel. --}}
+@include('_partials._surface-theme-control')
+
 <!-- BEGIN: Page JS-->
 @yield('page-script')
 <!-- END: Page JS-->

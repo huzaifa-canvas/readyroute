@@ -206,7 +206,7 @@
 
 @section('page-script')
 <script>
-  (function () {
+  document.addEventListener('DOMContentLoaded', function () {
     const body = document.querySelector('.chat-history-body');
 
     // Vuexy scrolls the history with PerfectScrollbar; fall back to the
@@ -314,6 +314,6 @@
 
     setInterval(poll, 5000);
     @endif
-  })();
+  });
 </script>
 @endsection

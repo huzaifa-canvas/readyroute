@@ -47,12 +47,14 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'name' => 'Trip Management',
+            'feature' => 'trips',
             'permission' => 'trips.view',
             'icon' => 'menu-icon icon-base ti tabler-layout-grid',
             'slug' => 'dispatcher.trip',
             'submenu' => [
                 (object)[
                     'url' => 'dispatcher/trip/list',
+                    'feature' => 'trips',
                     'permission' => 'trips.view',
                     'name' => 'Trip List',
                     'icon' => 'menu-icon icon-base ti tabler-file-text',
@@ -60,6 +62,7 @@ if ($user && $user->isAdmin()) {
                 ],
                 (object)[
                     'url' => 'dispatcher/trip/calendar',
+                    'feature' => 'trips',
                     'permission' => 'trips.view',
                     'name' => 'Calendar View',
                     'icon' => 'menu-icon icon-base ti tabler-calendar',
@@ -67,6 +70,7 @@ if ($user && $user->isAdmin()) {
                 ],
                 (object)[
                     'url' => 'dispatcher/trip/create',
+                    'feature' => 'trips',
                     'permission' => 'trips.create',
                     'name' => 'Create Trip',
                     'icon' => 'menu-icon icon-base ti tabler-plus',
@@ -76,6 +80,7 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'url' => 'dispatcher/live-map',
+            'feature' => 'live_map',
             'permission' => 'live_map.view',
             'name' => 'Live Map Operations',
             'icon' => 'menu-icon icon-base ti tabler-clipboard-data',
@@ -83,6 +88,7 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'url' => 'dispatcher/auto-dispatch',
+            'feature' => 'auto_dispatch',
             'permission' => 'auto_dispatch.run',
             'name' => 'Smart Auto-Dispatch',
             'icon' => 'menu-icon icon-base ti tabler-route-2',
@@ -90,6 +96,7 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'url' => 'dispatcher/fleet',
+            'feature' => 'fleet',
             'permission' => 'fleet.view',
             'name' => 'Fleet Management',
             'icon' => 'menu-icon icon-base ti tabler-chart-bar',
@@ -97,6 +104,7 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'url' => 'dispatcher/driver/list',
+            'feature' => 'drivers',
             'permission' => 'drivers.view',
             'name' => 'Driver Management',
             'icon' => 'menu-icon icon-base ti tabler-users',
@@ -104,20 +112,15 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'url' => 'dispatcher/client',
+            'feature' => 'clients',
             'permission' => 'clients.view',
             'name' => 'Client Profiles',
             'icon' => 'menu-icon icon-base ti tabler-user-square',
             'slug' => ['dispatcher.client.index', 'dispatcher.client.show', 'dispatcher.client.create', 'dispatcher.client.edit']
         ],
         (object)[
-            'url' => 'dispatcher/messages',
-            'permission' => 'messages.view',
-            'name' => 'Driver Messages',
-            'icon' => 'menu-icon icon-base ti tabler-message-circle',
-            'slug' => ['dispatcher.messages.index', 'dispatcher.messages.thread']
-        ],
-        (object)[
             'url' => 'dispatcher/incidents',
+            'feature' => 'incidents',
             'permission' => 'incidents.view',
             'name' => 'Incidents & Alerts',
             'icon' => 'menu-icon icon-base ti tabler-urgent',
@@ -125,6 +128,7 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'url' => 'dispatcher/compliance',
+            'feature' => 'compliance',
             'permission' => 'drivers.view',
             'name' => 'Compliance Center',
             'icon' => 'menu-icon icon-base ti tabler-shield-check',
@@ -132,6 +136,7 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'url' => 'dispatcher/reports',
+            'feature' => 'reports',
             'permission' => 'reports.view',
             'name' => 'Reports',
             'icon' => 'menu-icon icon-base ti tabler-chart-histogram',
@@ -139,6 +144,7 @@ if ($user && $user->isAdmin()) {
         ],
         (object)[
             'url' => 'dispatcher/billing',
+            'feature' => 'billing',
             'permission' => 'billing.view',
             'name' => 'Billing & Claims',
             'icon' => 'menu-icon icon-base ti tabler-file-dollar',
@@ -164,6 +170,7 @@ if ($user && $user->isAdmin()) {
                 ],
                 (object)[
                     'url' => 'dispatcher/users',
+                    'feature' => 'system_users',
                     'permission' => 'users.manage',
                     'name' => 'System Users',
                     'icon' => 'menu-icon icon-base ti tabler-users-group',
@@ -192,6 +199,12 @@ if ($user && $user->isAdmin()) {
  */
 $allowed = function ($item) use ($user) {
     if (! $user) {
+        return false;
+    }
+
+    // Two independent gates. The tier decides whether the company bought the
+    // capability at all; the role decides whether this person may use it.
+    if (! empty($item->feature) && ! $user->planAllows($item->feature)) {
         return false;
     }
 

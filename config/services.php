@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    /*
+     * Stripe. The panel takes payment in-app with the Payment Element, so the
+     * publishable key reaches the browser and the secret key never does.
+     * Leaving these empty disables buying a plan rather than breaking the
+     * screen — the admin can still assign tiers by hand.
+     */
+    'stripe' => [
+        'key'          => env('STRIPE_KEY'),
+        'secret'       => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'currency'     => env('STRIPE_CURRENCY', 'usd'),
+    ],
+
 ];

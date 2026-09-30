@@ -106,7 +106,7 @@
           <i class="ti tabler-route fs-6 text-white"></i>
         </span>
         <div>
-          <div class="fw-bold text-heading" style="font-size: 0.9rem;">{{ $activeTripsCount > 0 ? $activeTripsCount : 8 }} Active Trips</div>
+          <div class="fw-bold text-heading" style="font-size: 0.9rem;">{{ $activeTripsCount }} {{ $activeTripsCount === 1 ? 'Active Trip' : 'Active Trips' }}</div>
           <small class="text-muted">In Progress / Scheduled</small>
         </div>
       </div>
@@ -146,9 +146,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }).setView([29.7604, -95.3698], 12);
 
     // CartoDB Voyager Map Tiles
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap'
+    // Basemap comes from config, so moving off OpenStreetMap later is an
+    // .env change rather than an edit to every map in the panel.
+    @php($tiles = \App\Support\MapTiles::current())
+    L.tileLayer(@json($tiles['url']), {
+      maxZoom: {{ $tiles['max_zoom'] }},
+      attribution: @json($tiles['attribution'])
     }).addTo(map);
 
     // Custom Icon Definitions
@@ -173,29 +176,51 @@ document.addEventListener('DOMContentLoaded', function() {
       iconAnchor: [13, 13]
     });
 
-    // Populate Map with Markers
-    @if(isset($trips) && count($trips) > 0)
-      @foreach($trips as $index => $trip)
-        @if($trip->pickup_latitude && $trip->pickup_longitude)
-          L.marker([{{ $trip->pickup_latitude }}, {{ $trip->pickup_longitude }}], { icon: pickupIcon })
-            .addTo(map)
-            .bindPopup("<b>Pickup:</b> {{ addslashes($trip->passenger_name) }}<br>{{ addslashes($trip->pickup_address) }}");
-        @endif
-        @if($trip->dropoff_latitude && $trip->dropoff_longitude)
-          L.marker([{{ $trip->dropoff_latitude }}, {{ $trip->dropoff_longitude }}], { icon: destinationIcon })
-            .addTo(map)
-            .bindPopup("<b>Dropoff:</b> {{ addslashes($trip->passenger_name) }}<br>{{ addslashes($trip->dropoff_address) }}");
-        @endif
-      @endforeach
-    @else
-      // Fallback pins matching Dispatch Board
-      L.marker([29.78, -95.38], { icon: pickupIcon }).addTo(map).bindPopup("<b>Pickup:</b> John Doe<br>123 Main St, Houston, TX");
-      L.marker([29.74, -95.42], { icon: pickupIcon }).addTo(map).bindPopup("<b>Pickup:</b> Sarah Smith<br>400 Oak Ave, Houston, TX");
-      L.marker([29.72, -95.32], { icon: pickupIcon }).addTo(map).bindPopup("<b>Pickup:</b> Michael Johnson<br>900 Pine Ln, Houston, TX");
-      L.marker([29.76, -95.35], { icon: driverIcon }).addTo(map).bindPopup("<b>Driver:</b> Mike Davis<br>Status: En Route");
-      L.marker([29.80, -95.33], { icon: driverIcon }).addTo(map).bindPopup("<b>Driver:</b> Sarah Lee<br>Status: Online / Available");
-      L.marker([29.71, -95.39], { icon: driverIcon }).addTo(map).bindPopup("<b>Driver:</b> Robert Clark<br>Status: Assigned");
-    @endif
+    /*
+     * Real positions only.
+     *
+     * The previous version read pickup_latitude / pickup_longitude, which are
+     * not the column names — so the trip pins never appeared, and the demo
+     * pins sitting behind them made that impossible to notice. It also
+     * ignored the driver positions the controller was already passing in.
+     */
+    const tripPoints   = @json($tripPoints ?? []);
+    const driverPoints = @json($driverPositions ?? []);
+    const allBounds    = [];
+
+    tripPoints.forEach(function (point) {
+      L.marker([point.lat, point.lng], { icon: point.kind === 'pickup' ? pickupIcon : destinationIcon })
+        .addTo(map)
+        .bindPopup('<b>' + point.title + '</b><br>' + (point.note || ''));
+      allBounds.push([point.lat, point.lng]);
+    });
+
+    driverPoints.forEach(function (driver) {
+      L.marker([driver.lat, driver.lng], { icon: driverIcon })
+        .addTo(map)
+        .bindPopup('<b>Driver:</b> ' + driver.name + '<br>' +
+                   (driver.code ? driver.code + '<br>' : '') +
+                   (driver.is_online ? 'Online' : 'Offline') +
+                   (driver.seen ? ' &middot; seen ' + driver.seen : ''));
+      allBounds.push([driver.lat, driver.lng]);
+    });
+
+    if (allBounds.length > 1) {
+      map.fitBounds(L.latLngBounds(allBounds), { padding: [50, 50] });
+    } else if (allBounds.length === 1) {
+      map.setView(allBounds[0], 13);
+    } else {
+      // Nothing to plot. Say so rather than leave an empty rectangle that
+      // reads as a broken map.
+      const note = L.control({ position: 'topright' });
+      note.onAdd = function () {
+        const div = L.DomUtil.create('div', 'leaflet-bar');
+        div.style.cssText = 'background:#fff;padding:.5rem .75rem;font-size:.8125rem;color:#6f6b7d;border-radius:.375rem;';
+        div.textContent = 'No geocoded trips or driver positions yet';
+        return div;
+      };
+      note.addTo(map);
+    }
   }
 });
 </script>

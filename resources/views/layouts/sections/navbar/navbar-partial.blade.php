@@ -45,15 +45,15 @@
 
   <ul class="navbar-nav flex-row align-items-center ms-auto">
 
-  @if ($configData['hasCustomizer'] == true)
+    @if ($configData['hasCustomizer'] == true)
     <!-- Style Switcher -->
     <li class="nav-item dropdown me-2 me-xl-1">
-        <a class="nav-link dropdown-toggle hide-arrow" id="nav-theme" href="javascript:void(0);"
+      <a class="nav-link dropdown-toggle hide-arrow" id="nav-theme" href="javascript:void(0);"
           data-bs-toggle="dropdown">
           <i class="icon-base ti tabler-sun icon-md theme-icon-active"></i>
           <span class="d-none ms-2" id="nav-theme-text">Toggle theme</span>
         </a>
-        <ul class="dropdown-menu dropdown-menu-start" aria-labelledby="nav-theme-text">
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="nav-theme-text">
           <li>
             <button type="button" class="dropdown-item align-items-center active" data-bs-theme-value="light"
               aria-pressed="false">
@@ -76,7 +76,7 @@
         </ul>
       </li>
     <!-- / Style Switcher-->
-  @endif
+    @endif
 
 
     @php($navNotifications = auth()->check() ? auth()->user()->notifications()->latest()->limit(7)->get() : collect())

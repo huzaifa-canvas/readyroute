@@ -86,6 +86,10 @@
   <!-- Include Scripts for customizer, helper, analytics, config -->
   <!-- $isFront is used to append the front layout scriptsIncludes only on the front layout otherwise the variable will be blank -->
   @include('layouts/sections/scriptsIncludes' . $isFront)
+
+  {{-- Applies the saved background before the first paint, so a chosen
+       surface never flashes the default first. --}}
+  @include('_partials._surface-theme')
 </head>
 
 <body>

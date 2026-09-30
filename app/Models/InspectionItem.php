@@ -65,20 +65,33 @@ class InspectionItem extends Model
      * Give a dispatcher company the default checklist. Safe to call more than
      * once: it does nothing if the company already has items.
      */
+    /**
+     * Give a company the starting checklist, once.
+     *
+     * Wrapped in a transaction that locks the company row first: two drivers
+     * opening their first inspection at the same moment would otherwise both
+     * find the list empty and both seed it, leaving every item duplicated.
+     * There is no unique index to catch that, so the lock is what prevents it.
+     */
     public static function seedDefaultsFor(User $dispatcher): void
     {
-        if (static::where('dispatcher_id', $dispatcher->id)->exists()) {
-            return;
-        }
+        \Illuminate\Support\Facades\DB::transaction(function () use ($dispatcher) {
+            // Serialises concurrent seeds for this company.
+            User::whereKey($dispatcher->id)->lockForUpdate()->first();
 
-        foreach (self::DEFAULTS as $index => $label) {
-            static::create([
-                'dispatcher_id' => $dispatcher->id,
-                'label'         => $label,
-                'sort_order'    => $index + 1,
-                'is_required'   => true,
-                'is_active'     => true,
-            ]);
-        }
+            if (static::where('dispatcher_id', $dispatcher->id)->exists()) {
+                return;
+            }
+
+            foreach (self::DEFAULTS as $index => $label) {
+                static::create([
+                    'dispatcher_id' => $dispatcher->id,
+                    'label'         => $label,
+                    'sort_order'    => $index + 1,
+                    'is_required'   => true,
+                    'is_active'     => true,
+                ]);
+            }
+        });
     }
 }

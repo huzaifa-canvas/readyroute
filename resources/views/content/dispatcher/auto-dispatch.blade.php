@@ -162,7 +162,7 @@
 
           <div class="d-flex align-items-center gap-3 text-muted small">
             <span><i class="ti tabler-clock text-muted me-1"></i>{{ \Carbon\Carbon::parse($trip->pickup_time)->format('h:i A') }}</span>
-            <span><i class="ti tabler-map-pin text-primary me-1"></i>{{ $trip->distance ? $trip->distance . ' miles' : '4.2 miles' }}</span>
+            <span><i class="ti tabler-map-pin text-primary me-1"></i>{{ $trip->distance ? $trip->distance . ' miles' : 'Distance unknown' }}</span>
             <span>
               <i class="ti {{ $trip->req_wheelchair ? 'tabler-wheelchair' : 'tabler-user' }} text-primary me-1"></i>
               {{ $trip->req_wheelchair ? 'Wheelchair Req.' : 'Standard' }}
@@ -170,44 +170,17 @@
           </div>
         </div>
       @empty
-        {{-- Demonstration Pool if database is empty --}}
-        <div class="unassigned-trip-card trip-item active-trip-card" data-status="unassigned"
-             onclick="selectTripRoute(this, 29.7804, -95.3698, 29.8404, -95.2998, 'Trip #801 — Patient Name', '123 Main St', '456 Hospital Blvd')">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold text-dark mb-0 fs-5">Trip #801 — Patient Name</h6>
-            <span class="badge-needs-assignment">Needs Assignment</span>
-          </div>
-          <div class="d-flex align-items-center gap-3 text-muted small">
-            <span><i class="ti tabler-clock me-1"></i>10:30 AM</span>
-            <span><i class="ti tabler-map-pin text-primary me-1"></i>4.2 miles</span>
-            <span><i class="ti tabler-wheelchair text-primary me-1"></i>Wheelchair Req.</span>
-          </div>
-        </div>
-
-        <div class="unassigned-trip-card trip-item" data-status="assigned"
-             onclick="selectTripRoute(this, 29.7404, -95.4298, 29.7904, -95.3498, 'Trip #802 — Maria Garcia', '400 Oak Ave', 'St. Mary\'s Clinic')">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold text-dark mb-0 fs-5">Trip #802 — Maria Garcia</h6>
-            <span class="badge-assigned-driver">Assigned: Mike Davis</span>
-          </div>
-          <div class="d-flex align-items-center gap-3 text-muted small">
-            <span><i class="ti tabler-clock me-1"></i>11:00 AM</span>
-            <span><i class="ti tabler-map-pin text-primary me-1"></i>5.1 miles</span>
-            <span><i class="ti tabler-wheelchair text-primary me-1"></i>Wheelchair Req.</span>
-          </div>
-        </div>
-
-        <div class="unassigned-trip-card trip-item" data-status="unassigned"
-             onclick="selectTripRoute(this, 29.7204, -95.3298, 29.7704, -95.2698, 'Trip #803 — Patient Name', '900 Pine Ln', 'Dialysis Center')">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold text-dark mb-0 fs-5">Trip #803 — Patient Name</h6>
-            <span class="badge-needs-assignment">Needs Assignment</span>
-          </div>
-          <div class="d-flex align-items-center gap-3 text-muted small">
-            <span><i class="ti tabler-clock me-1"></i>11:30 AM</span>
-            <span><i class="ti tabler-map-pin text-primary me-1"></i>3.8 miles</span>
-            <span><i class="ti tabler-user text-primary me-1"></i>Standard</span>
-          </div>
+        {{-- Nothing scheduled. Demo trips here read as real work waiting to be
+             assigned, which is worse than an empty list. --}}
+        <div class="unassigned-trip-card text-center py-5">
+          <i class="ti tabler-route-off text-secondary d-block mb-2" style="font-size: 2.5rem;"></i>
+          <h6 class="fw-bold mb-1">Nothing to dispatch</h6>
+          <p class="text-muted small mb-3">
+            Scheduled trips appear here so you can assign them to drivers, by hand or automatically.
+          </p>
+          @if(auth()->user()->canUse('trips', 'trips.create') && auth()->user()->hasActiveSubscription())
+            <a href="{{ route('dispatcher.trip.create') }}" class="btn btn-primary btn-sm px-4">Create a trip</a>
+          @endif
         </div>
       @endforelse
     </div>
@@ -239,9 +212,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }).setView([29.7604, -95.3698], 11);
 
     // Light map tile theme
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap'
+    // Basemap comes from config, so moving off OpenStreetMap later is an
+    // .env change rather than an edit to every map in the panel.
+    @php($tiles = \App\Support\MapTiles::current())
+    L.tileLayer(@json($tiles['url']), {
+      maxZoom: {{ $tiles['max_zoom'] }},
+      attribution: @json($tiles['attribution'])
     }).addTo(map);
 
     // Auto-select first trip card to draw initial route

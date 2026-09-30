@@ -27,6 +27,35 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Map tiles
+    |--------------------------------------------------------------------------
+    |
+    | Which basemap the panel's maps draw on. "osm" is OpenStreetMap's own
+    | tile service: free, no account, no key — what we run on today.
+    |
+    | The paid options all speak the same {z}/{x}/{y} tile protocol, so moving
+    | to one is a key in .env rather than a change to any view. Google Maps is
+    | the exception: it is not a tile service, so switching to it means loading
+    | its own SDK, which is why it is listed here but handled separately when
+    | the key arrives.
+    |
+    */
+
+    'map' => [
+        // osm | carto | maptiler | stadia
+        'provider' => env('READYROUTE_MAP_PROVIDER', 'osm'),
+
+        // Only the chosen provider's key is read.
+        'carto_key'    => env('CARTO_API_KEY'),
+        'maptiler_key' => env('MAPTILER_API_KEY'),
+        'stadia_key'   => env('STADIA_API_KEY'),
+
+        // OpenStreetMap asks that applications identify themselves.
+        'attribution_contact' => env('READYROUTE_MAP_CONTACT'),
+    ],
+
     'distance' => [
         'provider' => env('READYROUTE_DISTANCE_PROVIDER', 'haversine'),
 

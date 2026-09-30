@@ -30,8 +30,13 @@ class User extends Authenticatable
         'role_id',
         'status',
         'subscription_plan_id',
+        'subscription_status',
         'subscribed_at',
         'renews_at',
+        'stripe_customer_id',
+        'stripe_subscription_id',
+        'trial_ends_at',
+        'cancels_at',
         'suspended_at',
         'suspension_reason',
         'driver_code',
@@ -74,6 +79,8 @@ class User extends Authenticatable
             'suspended_at' => 'datetime',
             'subscribed_at' => 'datetime',
             'renews_at' => 'date',
+            'trial_ends_at' => 'datetime',
+            'cancels_at' => 'datetime',
         ];
     }
 
@@ -229,6 +236,115 @@ class User extends Authenticatable
     public function incidents()
     {
         return $this->hasMany(TripIncident::class, 'driver_id');
+    }
+
+    /**
+     * Subscription state
+     *
+     * A company with no live subscription can sign in and read, but cannot
+     * change anything. That is deliberate: locking someone out of their own
+     * records because a card expired would be worse than the unpaid bill.
+     */
+    public function hasActiveSubscription(): bool
+    {
+        // The platform admin is not a tenant and never needs a plan.
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        $company = $this->isCompanyOwner() ? $this : $this->dispatcher;
+
+        if (! $company) {
+            return false;
+        }
+
+        if ($company->trial_ends_at && $company->trial_ends_at->isFuture()) {
+            return true;
+        }
+
+        return $company->subscription_status === 'active'
+            && $company->subscription_plan_id !== null;
+    }
+
+    /**
+     * Whether the company's tier includes a capability. Independent of the
+     * user's own permissions — both have to pass.
+     */
+    public function planAllows(string $feature): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        $company = $this->isCompanyOwner() ? $this : $this->dispatcher;
+        $plan    = $company?->subscriptionPlan;
+
+        /*
+         * No plan at all is not the same as a plan that excludes something.
+         * A company that has not subscribed can still look around the panel —
+         * EnsureActiveSubscription already stops them changing anything, and
+         * hiding every screen would leave them with nothing to evaluate
+         * before paying. Tier gating is about which features a paying
+         * customer gets.
+         */
+        if (! $plan) {
+            return true;
+        }
+
+        return $plan->hasFeature($feature);
+    }
+
+    /**
+     * Both gates at once, which is what the menu and the middleware want.
+     */
+    public function canUse(string $feature, ?string $permission = null): bool
+    {
+        if (! $this->planAllows($feature)) {
+            return false;
+        }
+
+        return $permission === null || $this->hasPermission($permission);
+    }
+
+    public function subscriptionStatusLabel(): string
+    {
+        $company = $this->isCompanyOwner() ? $this : $this->dispatcher;
+
+        if ($company?->trial_ends_at && $company->trial_ends_at->isFuture()) {
+            return 'Trial';
+        }
+
+        // Still paid up, just not renewing.
+        if ($company?->cancels_at && $company->cancels_at->isFuture()) {
+            return 'Ends ' . $company->cancels_at->format('d M Y');
+        }
+
+        return match ($company?->subscription_status) {
+            'active'    => 'Active',
+            'past_due'  => 'Payment overdue',
+            'cancelled' => 'Cancelled',
+            default     => 'No subscription',
+        };
+    }
+
+    public function subscriptionStatusClass(): string
+    {
+        $company = $this->isCompanyOwner() ? $this : $this->dispatcher;
+
+        if ($company?->trial_ends_at && $company->trial_ends_at->isFuture()) {
+            return 'bg-label-info';
+        }
+
+        if ($company?->cancels_at && $company->cancels_at->isFuture()) {
+            return 'bg-label-warning';
+        }
+
+        return match ($company?->subscription_status) {
+            'active'    => 'bg-label-success',
+            'past_due'  => 'bg-label-warning',
+            'cancelled' => 'bg-label-danger',
+            default     => 'bg-label-secondary',
+        };
     }
 
     public function subscriptionPlan()
@@ -396,13 +512,27 @@ class User extends Authenticatable
         return $query->where('role', 'dispatcher')->whereNull('dispatcher_id');
     }
 
-    public function scopeStaffOf(Builder $query, int $companyId): Builder
+    /*
+     * Both take a nullable company id. An admin belongs to no company, so
+     * companyId() is null for them — and admins can reach the dispatcher
+     * screens. Rejecting null would crash those pages; returning nothing is
+     * the honest answer, because a platform admin has no drivers of their own.
+     */
+    public function scopeStaffOf(Builder $query, ?int $companyId): Builder
     {
+        if ($companyId === null) {
+            return $query->whereRaw('1 = 0');
+        }
+
         return $query->where('role', 'dispatcher')->where('dispatcher_id', $companyId);
     }
 
-    public function scopeDriversOf(Builder $query, int $companyId): Builder
+    public function scopeDriversOf(Builder $query, ?int $companyId): Builder
     {
+        if ($companyId === null) {
+            return $query->whereRaw('1 = 0');
+        }
+
         return $query->where('role', 'driver')->where('dispatcher_id', $companyId);
     }
 

@@ -261,7 +261,7 @@
 
 @section('page-script')
 <script>
-  (function () {
+  document.addEventListener('DOMContentLoaded', function () {
     var el = document.getElementById('tripsPerDay');
     if (!el || typeof ApexCharts === 'undefined') return;
 
@@ -339,6 +339,6 @@
     });
 
     chart.render();
-  })();
+  });
 </script>
 @endsection

@@ -9,6 +9,7 @@ use App\Models\InspectionResponse;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleInspection;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -44,17 +45,22 @@ class InspectionService
             );
         }
 
-        $inspection = VehicleInspection::firstOrCreate(
-            [
-                'driver_id'       => $driver->id,
-                'vehicle_id'      => $vehicle->id,
-                'inspection_date' => $date->toDateString(),
-            ],
-            [
+        $keys = [
+            'driver_id'       => $driver->id,
+            'vehicle_id'      => $vehicle->id,
+            'inspection_date' => $date->toDateString(),
+        ];
+
+        try {
+            $inspection = VehicleInspection::firstOrCreate($keys, [
                 'dispatcher_id' => $driver->dispatcher_id ?: $vehicle->dispatcher_id,
                 'status'        => InspectionStatus::Draft->value,
-            ]
-        );
+            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            // Another request created today's inspection between our check and
+            // our insert. That is the row we wanted, so take it.
+            $inspection = VehicleInspection::where($keys)->firstOrFail();
+        }
 
         $this->syncResponses($inspection);
 
@@ -76,19 +82,34 @@ class InspectionService
 
         $items = $this->checklistFor($inspection->dispatcher_id);
 
-        $existing = InspectionResponse::where('vehicle_inspection_id', $inspection->id)
-            ->pluck('inspection_item_id')
-            ->all();
-
-        $missing = $items->reject(fn ($item) => in_array($item->id, $existing, true));
-
-        foreach ($missing as $item) {
-            InspectionResponse::create([
-                'vehicle_inspection_id' => $inspection->id,
-                'inspection_item_id'    => $item->id,
-                'status'                => InspectionItemStatus::Pending->value,
-            ]);
+        if ($items->isEmpty()) {
+            return;
         }
+
+        $now = now();
+
+        $rows = $items->map(fn ($item) => [
+            'vehicle_inspection_id' => $inspection->id,
+            'inspection_item_id'    => $item->id,
+            'status'                => InspectionItemStatus::Pending->value,
+            'created_at'            => $now,
+            'updated_at'            => $now,
+        ])->all();
+
+        /*
+         * One statement, and the database decides.
+         *
+         * Reading the existing ids and inserting what looked missing was a
+         * read-then-write race: two requests arriving together — a retried
+         * tap, or the app opening the checklist twice — both saw the same row
+         * missing and both inserted it, which the unique index then rejected
+         * and the driver saw as a 422.
+         *
+         * insertOrIgnore leaves rows that already exist untouched, so answers
+         * already given are never disturbed and running this on every open
+         * stays safe.
+         */
+        InspectionResponse::insertOrIgnore($rows);
     }
 
     /**

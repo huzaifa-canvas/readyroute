@@ -226,6 +226,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   @endif
 
+  @php($tiles = \App\Support\MapTiles::current())
   <script>
     (function () {
       var pollUrl  = @json(route('track.position', $trip->public_token));
@@ -240,7 +241,11 @@
         if (!window.L || !document.getElementById('map') || !mapPoints.has_points) return;
 
         map = L.map('map', { zoomControl: false, attributionControl: false });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        // Same basemap as the panel, from the same config.
+        L.tileLayer(@json($tiles['url']), {
+          maxZoom: {{ $tiles['max_zoom'] }},
+          attribution: @json($tiles['attribution'])
+        }).addTo(map);
 
         var bounds = [];
 

@@ -14,7 +14,16 @@ class CreateNewUser implements CreatesNewUsers
     use PasswordValidationRules;
 
     /**
-     * Validate and create a newly registered user.
+     * Register a dispatcher company.
+     *
+     * Public registration only ever produces a dispatcher, never an
+     * administrator: platform admins are created by another admin. The role is
+     * set here rather than taken from the form, and a posted role is rejected
+     * outright so a tampered request fails loudly instead of being quietly
+     * ignored.
+     *
+     * The new company starts with no subscription, which leaves their panel
+     * readable but read-only until they choose a plan.
      *
      * @param  array<string, string>  $input
      *
@@ -32,13 +41,29 @@ class CreateNewUser implements CreatesNewUsers
                 Rule::unique(User::class),
             ],
             'password' => $this->passwordRules(),
+
+            // Nothing may ask for a role here. Prohibited rather than ignored,
+            // so an attempt shows up as a validation failure.
+            'role'    => ['prohibited'],
+            'role_id' => ['prohibited'],
+        ], [
+            'role.prohibited'    => 'The account type cannot be chosen during registration.',
+            'role_id.prohibited' => 'The account type cannot be chosen during registration.',
         ])->validate();
 
         return User::create([
-            'name' => $input['name'],
-            'email' => $input['email'],
+            'name'     => $input['name'],
+            'email'    => $input['email'],
             'password' => Hash::make($input['password']),
-            'role' => 'dispatcher',
+
+            // Fixed, never read from the request.
+            'role'          => 'dispatcher',
+            'dispatcher_id' => null,
+            'status'        => 'active',
+
+            // No plan yet: they can sign in and look around, and the panel
+            // unlocks once they subscribe.
+            'subscription_status' => 'none',
         ]);
     }
 }

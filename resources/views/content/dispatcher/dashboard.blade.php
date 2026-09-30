@@ -198,7 +198,7 @@
             @if($trip->req_wheelchair)
               <i class="ti tabler-wheelchair me-1"></i>
             @endif
-            {{ $trip->billing_type ?: 'Medicaid Transport' }} {{ $trip->req_wheelchair ? '• Wheelchair' : '' }}
+            {{ $trip->billing_type ?: 'No billing type' }} {{ $trip->req_wheelchair ? '• Wheelchair' : '' }}
           </span>
         </div>
 
@@ -209,39 +209,23 @@
         @endif
       </div>
     @empty
-      {{-- Fallback Demo Cards matching exact reference screenshot --}}
-      <div class="trip-card">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <h6 class="fw-bold mb-0 text-dark fs-5">John Smith</h6>
-          <small class="text-muted"><i class="ti tabler-clock me-1"></i>10:30 AM</small>
-        </div>
-        <div class="mb-2 text-muted small"><i class="ti tabler-map-pin text-primary me-2"></i>Pickup: 123 Main St</div>
-        <div class="mb-3"><span class="badge bg-label-secondary rounded-pill px-3">Medicaid Transport</span></div>
-        <button type="button" class="btn btn-assign-blue" onclick="openAssignModal(1, 'John Smith')">Assign Driver</button>
-      </div>
-
-      <div class="trip-card">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <h6 class="fw-bold mb-0 text-dark fs-5">Maria Garcia</h6>
-          <div class="d-flex align-items-center gap-2">
-            <span class="assigned-badge">Assigned: Mike Davis</span>
-            <small class="text-muted"><i class="ti tabler-clock me-1"></i>11:00 AM</small>
-          </div>
-        </div>
-        <div class="mb-2 text-muted small"><i class="ti tabler-map-pin text-primary me-2"></i>Pickup: 400 Oak Ave</div>
-        <div class="mb-0"><span class="badge bg-label-secondary rounded-pill px-3">Private Pay • Wheelchair</span></div>
-      </div>
-
-      <div class="trip-card">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <h6 class="fw-bold mb-0 text-dark fs-5">Robert Johnson</h6>
-          <div class="d-flex align-items-center gap-2">
-            <span class="assigned-badge">Assigned: Sarah Lee</span>
-            <small class="text-muted"><i class="ti tabler-clock me-1"></i>11:45 AM</small>
-          </div>
-        </div>
-        <div class="mb-2 text-muted small"><i class="ti tabler-map-pin text-primary me-2"></i>Pickup: 900 Pine Ln</div>
-        <div class="mb-0"><span class="badge bg-label-secondary rounded-pill px-3">Standard</span></div>
+      {{-- A new company has nothing booked yet. Show that plainly instead of
+           demo passengers, which read as real trips someone has to action. --}}
+      <div class="trip-card text-center py-5">
+        <i class="ti tabler-calendar-off text-secondary d-block mb-2" style="font-size: 2.5rem;"></i>
+        <h6 class="fw-bold mb-1">No upcoming trips</h6>
+        <p class="text-muted small mb-3">
+          Trips you schedule appear here, soonest first, ready to assign to a driver.
+        </p>
+        @if(auth()->user()->canUse('trips', 'trips.create') && auth()->user()->hasActiveSubscription())
+          <a href="{{ route('dispatcher.trip.create') }}" class="btn btn-assign-blue d-inline-block px-4">
+            Create the first trip
+          </a>
+        @elseif(! auth()->user()->hasActiveSubscription())
+          <a href="{{ route('dispatcher.subscription') }}" class="btn btn-assign-blue d-inline-block px-4">
+            Choose a plan to get started
+          </a>
+        @endif
       </div>
     @endforelse
   </div>
@@ -309,12 +293,17 @@ document.addEventListener('DOMContentLoaded', function() {
   if (typeof L !== 'undefined' && document.getElementById('dispatchLiveMap')) {
     const map = L.map('dispatchLiveMap', {
       zoomControl: true
+    // Somewhere to start before any real point is known; the view is moved
+    // to the company's own pickups and drivers as soon as there are any.
     }).setView([29.7604, -95.3698], 11);
 
     // Tile Layer
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap'
+    // Basemap comes from config, so moving off OpenStreetMap later is an
+    // .env change rather than an edit to every map in the panel.
+    @php($tiles = \App\Support\MapTiles::current())
+    L.tileLayer(@json($tiles['url']), {
+      maxZoom: {{ $tiles['max_zoom'] }},
+      attribution: @json($tiles['attribution'])
     }).addTo(map);
 
     // Custom Pins matching reference screenshot layout
@@ -332,12 +321,38 @@ document.addEventListener('DOMContentLoaded', function() {
       iconAnchor: [15, 15]
     });
 
-    // Add Pins matching reference screenshot
-    L.marker([29.78, -95.38], { icon: blueIcon }).addTo(map).bindPopup("Pickup: 123 Main St");
-    L.marker([29.74, -95.42], { icon: blueIcon }).addTo(map).bindPopup("Pickup: 400 Oak Ave");
-    L.marker([29.72, -95.32], { icon: blueIcon }).addTo(map).bindPopup("Pickup: 900 Pine Ln");
-    L.marker([29.76, -95.35], { icon: driverIcon }).addTo(map).bindPopup("Driver: Mike Davis (En Route)");
-    L.marker([29.80, -95.33], { icon: driverIcon }).addTo(map).bindPopup("Driver: Sarah Lee (Online)");
+    // Real pickups and real driver positions only. An empty map is the
+    // honest answer for a company with nothing booked.
+    const pickups = @json($mapPoints['pickups']);
+    const drivers = @json($mapPoints['drivers']);
+    const bounds  = [];
+
+    pickups.forEach(function (point) {
+      L.marker([point.lat, point.lng], { icon: blueIcon }).addTo(map).bindPopup(point.label);
+      bounds.push([point.lat, point.lng]);
+    });
+
+    drivers.forEach(function (point) {
+      L.marker([point.lat, point.lng], { icon: driverIcon }).addTo(map).bindPopup(point.label);
+      bounds.push([point.lat, point.lng]);
+    });
+
+    if (bounds.length > 1) {
+      map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40] });
+    } else if (bounds.length === 1) {
+      map.setView(bounds[0], 13);
+    } else {
+      // Nothing to show: say so over the map rather than leaving a blank
+      // rectangle that looks broken.
+      const note = L.control({ position: 'topright' });
+      note.onAdd = function () {
+        const div = L.DomUtil.create('div', 'leaflet-bar');
+        div.style.cssText = 'background:#fff;padding:.5rem .75rem;font-size:.8125rem;color:#6f6b7d;border-radius:.375rem;';
+        div.textContent = 'No trips or driver positions yet';
+        return div;
+      };
+      note.addTo(map);
+    }
   }
 });
 

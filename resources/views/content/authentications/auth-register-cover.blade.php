@@ -90,7 +90,8 @@ $customizerHidden = 'customizer-hide';
           <img src="{{ asset('assets/auth/logo.png') }}" alt="Ready Route Logo" style="height: 68px; object-fit: contain;">
         </div>
 
-        <h2 class="fw-bold text-center text-dark mb-4" style="font-size: 1.85rem;">Create Account</h2>
+        <h2 class="fw-bold text-center text-dark mb-1" style="font-size: 1.85rem;">Create Account</h2>
+        <p class="text-center text-muted mb-4" style="font-size: 0.9rem;">Register your transportation company</p>
 
         {{-- Error Alerts --}}
         @if($errors->any())
@@ -140,14 +141,9 @@ $customizerHidden = 'customizer-hide';
             </div>
           </div>
 
-          {{-- Role --}}
-          <div class="mb-3">
-            <label for="role" class="form-label text-muted fw-semibold mb-1" style="font-size: 0.9rem;">Role</label>
-            <select id="role" name="role" class="form-select py-2">
-              <option value="dispatcher" selected>Dispatcher</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
+          {{-- No role picker: registering here always creates a dispatcher
+               company account. Platform administrators are created by another
+               administrator, never from a public form. --}}
 
           {{-- Password --}}
           <div class="mb-3">

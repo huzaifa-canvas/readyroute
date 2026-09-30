@@ -19,6 +19,9 @@ Route::fallback(function () {
 // ROLE-BASED API ROUTES (loaded from separate files)
 // ═══════════════════════════════════════════════════
 
+// Incoming provider webhooks (Stripe)
+require __DIR__ . '/api/webhooks.php';
+
 // Internal server-to-server routes (socket.io process)
 require __DIR__ . '/api/internal.php';
 
