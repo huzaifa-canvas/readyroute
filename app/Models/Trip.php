@@ -4,13 +4,18 @@ namespace App\Models;
 
 use App\Enums\ConfirmationStatus;
 use App\Enums\TripStatus;
+use App\Observers\TripObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
+#[ObservedBy(TripObserver::class)]
 class Trip extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
         'dispatcher_id',
@@ -47,6 +52,7 @@ class Trip extends Model
         'started_at',
         'arrived_dropoff_at',
         'completed_at',
+        'cancelled_at',
         'actual_distance',
         'actual_duration_min',
         'was_on_time',
@@ -69,6 +75,7 @@ class Trip extends Model
         'started_at' => 'datetime',
         'arrived_dropoff_at' => 'datetime',
         'completed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
         'actual_distance' => 'decimal:2',
         'actual_duration_min' => 'integer',
         'was_on_time' => 'boolean',
@@ -213,6 +220,55 @@ class Trip extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereIn('status', TripStatus::activeValues());
+    }
+
+    /**
+     * What the driver's trip list shows as upcoming: everything still to run,
+     * plus anything cancelled that has not passed yet.
+     *
+     * A cancelled trip is deliberately left on the list rather than vanishing
+     * from it. A driver who was expecting that run needs to see that it is
+     * off, not merely notice one day that it is gone. Once the pickup date is
+     * behind them it drops into history with the rest.
+     */
+    public function scopeUpcomingForDriver(Builder $query): Builder
+    {
+        return $query->where(function (Builder $q) {
+            $q->whereIn('status', TripStatus::activeValues())
+                ->orWhere(function (Builder $cancelled) {
+                    $cancelled->where('status', TripStatus::Cancelled->value)
+                        ->whereDate('pickup_date', '>=', now()->toDateString());
+                });
+        });
+    }
+
+    /**
+     * Cancelled trips are read-only for the driver: visible, but with no
+     * action left on them.
+     */
+    public function isCancelled(): bool
+    {
+        return $this->isStatus(TripStatus::Cancelled);
+    }
+
+    /**
+     * Invoice lines charging for this trip.
+     */
+    public function invoiceItems()
+    {
+        return $this->hasMany(InvoiceItem::class);
+    }
+
+    /**
+     * Whether this trip has already been put on an invoice.
+     *
+     * A billed trip cannot be deleted: the invoice line would be left charging
+     * for a journey with no record behind it, which is the kind of gap an audit
+     * asks about.
+     */
+    public function isBilled(): bool
+    {
+        return $this->invoiceItems()->exists();
     }
 
     /**

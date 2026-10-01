@@ -5,12 +5,21 @@
 @section('vendor-style')
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
+  /* Map pins, route lines and the accent furniture below all follow the
+     Primary Color chosen in the customizer. --rr-accent-deep is the one
+     derived shade: it keeps the driver pin distinguishable from the pickup
+     pin whatever the accent is. */
+  :root {
+    --rr-accent-deep: color-mix(in srgb, var(--bs-primary) 62%, #000000);
+    --rr-accent-mid: color-mix(in srgb, var(--bs-primary) 78%, #000000);
+    --rr-accent-hover: color-mix(in srgb, var(--bs-primary) 85%, #000000);
+  }
   .metric-card {
     border-radius: 12px;
     box-shadow: 0 4px 18px 0 rgba(0, 0, 0, 0.05);
     border: none;
     transition: transform 0.2s ease;
-    background: #ffffff;
+    background: var(--bs-paper-bg);
   }
   .metric-card:hover {
     transform: translateY(-2px);
@@ -19,8 +28,8 @@
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background-color: #0052ff;
-    color: #ffffff;
+    background-color: var(--bs-primary);
+    color: var(--bs-primary-contrast, #ffffff);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -28,15 +37,15 @@
   }
   .trip-card {
     border-radius: 12px;
-    border: 1px solid rgba(0, 0, 0, 0.07);
+    border: 1px solid var(--bs-border-color);
     box-shadow: 0 2px 10px 0 rgba(0, 0, 0, 0.03);
-    background: #ffffff;
+    background: var(--bs-paper-bg);
     padding: 20px;
     margin-bottom: 16px;
   }
   .btn-assign-blue {
-    background-color: #0052ff;
-    color: #ffffff;
+    background-color: var(--bs-primary);
+    color: var(--bs-primary-contrast, #ffffff);
     font-weight: 600;
     border-radius: 8px;
     padding: 10px;
@@ -45,8 +54,8 @@
     transition: background-color 0.2s ease;
   }
   .btn-assign-blue:hover {
-    background-color: #0041cd;
-    color: #ffffff;
+    background-color: var(--rr-accent-hover);
+    color: var(--bs-primary-contrast, #ffffff);
   }
   .assigned-badge {
     background-color: #fef3d6;
@@ -58,7 +67,7 @@
   }
   .avatar-group-overlap .avatar {
     margin-left: -0.6rem;
-    border: 2px solid #ffffff;
+    border: 2px solid var(--bs-paper-bg);
   }
   #dispatchLiveMap {
     height: 480px;
@@ -71,7 +80,8 @@
     top: 15px;
     left: 15px;
     z-index: 1000;
-    background: #ffffff;
+    background: var(--bs-paper-bg);
+    color: var(--bs-body-color);
     padding: 6px 14px;
     border-radius: 8px;
     font-size: 0.82rem;
@@ -110,7 +120,7 @@
         <div>
           <span class="text-muted fw-semibold d-block mb-1 fs-6">Active Trips</span>
           <div class="d-flex align-items-baseline gap-2">
-            <h2 class="fw-bold mb-0 text-dark">{{ $activeTripsCount }}</h2>
+            <h2 class="fw-bold mb-0 text-heading">{{ $activeTripsCount }}</h2>
             <span class="badge bg-label-success rounded-pill small"><i class="ti tabler-arrow-up me-1"></i>12%</span>
           </div>
         </div>
@@ -128,7 +138,7 @@
         <div>
           <span class="text-muted fw-semibold d-block mb-1 fs-6">Drivers Online</span>
           <div class="d-flex align-items-center gap-3">
-            <h2 class="fw-bold mb-0 text-dark">{{ $driversOnlineCount }}/{{ $driversTotalCount }}</h2>
+            <h2 class="fw-bold mb-0 text-heading">{{ $driversOnlineCount }}/{{ $driversTotalCount }}</h2>
             @if($totalDrivers->count() > 0)
               <div class="d-flex align-items-center ms-1">
                 @foreach($totalDrivers->take(3) as $d)
@@ -158,7 +168,7 @@
       <div class="card-body p-2 d-flex align-items-center justify-content-between">
         <div>
           <span class="text-muted fw-semibold d-block mb-1 fs-6">Pending Assignments</span>
-          <h2 class="fw-bold mb-0 text-dark">{{ $pendingAssignmentsCount }}</h2>
+          <h2 class="fw-bold mb-0 text-heading">{{ $pendingAssignmentsCount }}</h2>
         </div>
         <div class="metric-icon-circle">
           <i class="ti tabler-clock"></i>
@@ -173,14 +183,14 @@
   {{-- Left Column: Next Upcoming Trips --}}
   <div class="col-lg-5">
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <h5 class="fw-bold mb-0 text-dark">Next Upcoming Trips</h5>
+      <h5 class="fw-bold mb-0 text-heading">Next Upcoming Trips</h5>
       <a href="{{ route('dispatcher.trip.list') }}" class="text-primary fw-semibold small text-decoration-underline">View All</a>
     </div>
 
     @forelse($upcomingTrips as $trip)
       <div class="trip-card">
         <div class="d-flex justify-content-between align-items-start mb-2">
-          <h6 class="fw-bold mb-0 text-dark fs-5">{{ $trip->first_name }} {{ $trip->last_name }}</h6>
+          <h6 class="fw-bold mb-0 text-heading fs-5">{{ $trip->first_name }} {{ $trip->last_name }}</h6>
           <div class="d-flex align-items-center gap-2">
             @if($trip->driver)
               <span class="assigned-badge">Assigned: {{ $trip->driver->name }}</span>
@@ -232,7 +242,7 @@
 
   {{-- Right Column: Live Map Preview --}}
   <div class="col-lg-7">
-    <h5 class="fw-bold mb-3 text-dark">Live Map Preview</h5>
+    <h5 class="fw-bold mb-3 text-heading">Live Map Preview</h5>
 
     <div class="card shadow-sm border-0 position-relative">
       <div class="map-overlay-pill">
@@ -242,7 +252,7 @@
       <div id="dispatchLiveMap"></div>
 
       <div class="map-overlay-fullscreen">
-        <a href="{{ route('dispatcher.live-map') }}" class="btn btn-primary fw-bold px-4 py-2" style="background-color: #0052ff; border-radius: 8px;">
+        <a href="{{ route('dispatcher.live-map') }}" class="btn btn-primary fw-bold px-4 py-2" style="border-radius: 8px;">
           <i class="ti tabler-maximize me-1"></i> Enter Fullscreen
         </a>
       </div>
@@ -273,7 +283,7 @@
         </div>
         <div class="modal-footer border-top">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary" style="background-color: #0052ff;">Assign Driver</button>
+          <button type="submit" class="btn btn-primary">Assign Driver</button>
         </div>
       </form>
     </div>
@@ -309,14 +319,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Custom Pins matching reference screenshot layout
     const blueIcon = L.divIcon({
       className: 'custom-div-icon',
-      html: `<div style="background-color:#0052ff; width:24px; height:24px; border-radius:50%; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
+      html: `<div style="background-color:var(--bs-primary); width:24px; height:24px; border-radius:50%; border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>`,
       iconSize: [24, 24],
       iconAnchor: [12, 12]
     });
 
     const driverIcon = L.divIcon({
       className: 'custom-driver-icon',
-      html: `<div style="background-color:#002c8a; width:30px; height:30px; border-radius:50%; border:3px solid #fff; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,0.4);">D</div>`,
+      html: `<div style="background-color:var(--rr-accent-deep); width:30px; height:30px; border-radius:50%; border:3px solid #fff; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,0.4);">D</div>`,
       iconSize: [30, 30],
       iconAnchor: [15, 15]
     });
@@ -347,7 +357,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const note = L.control({ position: 'topright' });
       note.onAdd = function () {
         const div = L.DomUtil.create('div', 'leaflet-bar');
-        div.style.cssText = 'background:#fff;padding:.5rem .75rem;font-size:.8125rem;color:#6f6b7d;border-radius:.375rem;';
+        div.style.cssText = 'background:var(--bs-paper-bg);padding:.5rem .75rem;font-size:.8125rem;color:var(--bs-body-color);border-radius:.375rem;';
         div.textContent = 'No trips or driver positions yet';
         return div;
       };

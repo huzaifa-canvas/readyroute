@@ -123,6 +123,122 @@
     @endforeach
   </div>
 
+  {{-- Subscription and free access.
+       Free access is a plan the company holds without paying. The gate reads
+       the date, so it lapses on its own; the admin pushes it out from here. --}}
+  @php
+    $freeUntil   = $company->freeAccessEndsAt();
+    $freeExpired = $company->freeAccessExpiredAt();
+    $isPaying    = $company->subscription_status === 'active';
+  @endphp
+
+  <div class="card mb-4">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <h5 class="mb-0">Subscription</h5>
+      <span class="badge {{ $company->subscriptionStatusClass() }}">{{ $company->subscriptionStatusLabel() }}</span>
+    </div>
+
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-md-5">
+          <div class="mb-3">
+            <small class="text-muted d-block">Current plan</small>
+            <span class="fw-semibold text-heading">
+              {{ $company->subscriptionPlan?->name ?? 'None' }}
+            </span>
+            @if($company->subscriptionPlan)
+              <small class="text-muted">
+                ({{ $isPaying ? 'paid' : ($freeUntil ? 'free access' : 'not active') }})
+              </small>
+            @endif
+          </div>
+
+          @if($freeUntil)
+            <div class="alert alert-info mb-0 py-2 px-3">
+              <i class="ti tabler-gift me-1"></i>
+              Free until <strong>{{ $freeUntil->format('d M Y') }}</strong>
+              — {{ $freeUntil->diffForHumans() }}.
+            </div>
+          @elseif($freeExpired)
+            <div class="alert alert-danger mb-0 py-2 px-3">
+              <i class="ti tabler-clock-off me-1"></i>
+              Free access ended <strong>{{ $freeExpired->format('d M Y') }}</strong>.
+              They can sign in and read, but cannot create anything until they
+              subscribe or you extend the date.
+            </div>
+          @elseif($isPaying)
+            <div class="alert alert-success mb-0 py-2 px-3">
+              <i class="ti tabler-credit-card me-1"></i>
+              Paying by card. Granting free access would let them keep using the
+              panel if that subscription lapses.
+            </div>
+          @else
+            <div class="alert alert-secondary mb-0 py-2 px-3">
+              <i class="ti tabler-info-circle me-1"></i>
+              No subscription. They can sign in and look around, but cannot
+              create trips, drivers, vehicles or clients.
+            </div>
+          @endif
+        </div>
+
+        <div class="col-md-7">
+          <form action="{{ route('admin.company.free-access', $company->id) }}" method="POST">
+            @csrf
+            <div class="row g-3 align-items-end">
+              <div class="col-sm-6">
+                <label class="form-label fw-semibold" for="fa_plan">Plan</label>
+                <select id="fa_plan" name="subscription_plan_id" class="form-select" required>
+                  @foreach($plans as $plan)
+                    <option value="{{ $plan->id }}" {{ $company->subscription_plan_id == $plan->id ? 'selected' : '' }}>
+                      {{ $plan->name }} ({{ $plan->price }}{{ $plan->billing_period ? ' / ' . $plan->billing_period : '' }})
+                    </option>
+                  @endforeach
+                </select>
+              </div>
+
+              <div class="col-sm-6">
+                <label class="form-label fw-semibold" for="fa_until">Free until</label>
+                <input type="date" id="fa_until" name="free_until" class="form-control" required
+                       min="{{ now()->addDay()->toDateString() }}"
+                       value="{{ old('free_until', $freeUntil?->toDateString()) }}" />
+              </div>
+
+              <div class="col-12 d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-primary">
+                  <i class="ti tabler-gift me-1"></i>
+                  {{ $freeUntil ? 'Update free access' : 'Grant free access' }}
+                </button>
+
+                {{-- Quick extensions fill the date field rather than
+                     submitting a second value for it, so the admin sees the
+                     date they are about to set before committing to it. They
+                     count from whichever is later, today or the current end
+                     date, so extending can never shorten the period. --}}
+                @php($extendFrom = $freeUntil ?: now())
+                @foreach([30 => '+30 days', 90 => '+90 days', 365 => '+1 year'] as $days => $label)
+                  <button type="button" class="btn btn-label-primary"
+                          data-set-date="{{ $extendFrom->copy()->addDays($days)->toDateString() }}">
+                    {{ $label }}
+                  </button>
+                @endforeach
+
+                @if($freeUntil || $freeExpired)
+                  {{-- formnovalidate: withdrawing needs neither field, and the
+                       date is empty once a period has already lapsed. --}}
+                  <button type="submit" name="action" value="revoke" formnovalidate
+                          class="btn btn-label-danger ms-auto"
+                          onclick="return confirm('Withdraw free access from {{ $company->name }}? They will not be able to create anything until they subscribe.');">
+                    Withdraw
+                  </button>
+                @endif
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="row g-4">
     {{-- Recent trips --}}
     <div class="col-12 col-lg-7">
@@ -258,4 +374,23 @@
   </div>
 </div>
 @endunless
+@endsection
+
+@section('page-script')
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // The quick-extend buttons only fill the date field; submitting stays a
+    // deliberate second action, so a mis-click cannot change a company's
+    // billing standing.
+    const field = document.getElementById('fa_until');
+    if (!field) return;
+
+    document.querySelectorAll('[data-set-date]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        field.value = button.dataset.setDate;
+        field.focus();
+      });
+    });
+  });
+</script>
 @endsection

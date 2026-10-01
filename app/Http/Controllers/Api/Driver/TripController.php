@@ -41,7 +41,10 @@ class TripController extends BaseDriverController
                 TripStatus::Cancelled->value,
             ]),
             'all'      => null,
-            default    => $query->active(),
+            // Upcoming keeps a cancelled trip on the list until its date has
+            // passed, so the driver sees that the run is off rather than
+            // finding it quietly missing.
+            default    => $query->upcomingForDriver(),
         };
 
         if ($request->filled('status')) {

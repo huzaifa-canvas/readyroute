@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -306,17 +307,61 @@ class User extends Authenticatable
         return $permission === null || $this->hasPermission($permission);
     }
 
+    /**
+     * Free access granted by the platform admin, with an end date.
+     *
+     * Stored in trial_ends_at, which the subscription gate already honours.
+     * The company works normally until that date and is then treated as
+     * unsubscribed, so it can read the panel but not create anything until it
+     * either pays or the admin extends the date.
+     */
+    public function hasFreeAccess(): bool
+    {
+        return $this->freeAccessEndsAt() !== null;
+    }
+
+    /**
+     * When the free period runs out, or null if there is no live one.
+     */
+    public function freeAccessEndsAt(): ?\Illuminate\Support\Carbon
+    {
+        $company = $this->isCompanyOwner() ? $this : $this->dispatcher;
+
+        return $company?->trial_ends_at && $company->trial_ends_at->isFuture()
+            ? $company->trial_ends_at
+            : null;
+    }
+
+    /**
+     * A free period that has run out, for the "it expired on …" notice. A
+     * company that has since started paying is not shown as expired.
+     */
+    public function freeAccessExpiredAt(): ?\Illuminate\Support\Carbon
+    {
+        $company = $this->isCompanyOwner() ? $this : $this->dispatcher;
+
+        if (! $company?->trial_ends_at || $company->trial_ends_at->isFuture()) {
+            return null;
+        }
+
+        return $company->subscription_status === 'active' ? null : $company->trial_ends_at;
+    }
+
     public function subscriptionStatusLabel(): string
     {
         $company = $this->isCompanyOwner() ? $this : $this->dispatcher;
 
-        if ($company?->trial_ends_at && $company->trial_ends_at->isFuture()) {
-            return 'Trial';
+        if ($endsAt = $this->freeAccessEndsAt()) {
+            return 'Free until ' . $endsAt->format('d M Y');
         }
 
         // Still paid up, just not renewing.
         if ($company?->cancels_at && $company->cancels_at->isFuture()) {
             return 'Ends ' . $company->cancels_at->format('d M Y');
+        }
+
+        if ($this->freeAccessExpiredAt()) {
+            return 'Free access ended';
         }
 
         return match ($company?->subscription_status) {
@@ -331,8 +376,12 @@ class User extends Authenticatable
     {
         $company = $this->isCompanyOwner() ? $this : $this->dispatcher;
 
-        if ($company?->trial_ends_at && $company->trial_ends_at->isFuture()) {
+        if ($this->freeAccessEndsAt()) {
             return 'bg-label-info';
+        }
+
+        if ($this->freeAccessExpiredAt()) {
+            return 'bg-label-danger';
         }
 
         if ($company?->cancels_at && $company->cancels_at->isFuture()) {
@@ -589,14 +638,26 @@ class User extends Authenticatable
     public function getAvatarUrlAttribute()
     {
         $image = $this->avatar ?? $this->profile_image;
+
         if ($image) {
             if (str_starts_with($image, 'http://') || str_starts_with($image, 'https://')) {
                 return $image;
             }
+
             if (str_starts_with($image, 'assets/') || str_starts_with($image, 'upload/') || str_starts_with($image, 'storage/')) {
                 return asset($image);
             }
-            return asset('storage/' . $image);
+
+            /*
+             * An upload whose file is no longer there would otherwise render
+             * as a broken image for the rest of that account's life — the
+             * column still holds a path, so nothing ever falls back. Checking
+             * costs one stat and turns a visibly broken avatar into the
+             * default one.
+             */
+            if (Storage::disk('public')->exists($image)) {
+                return asset('storage/' . $image);
+            }
         }
 
         return asset('assets/img/avatars/1.png');

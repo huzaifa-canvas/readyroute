@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Dispatcher;
 
+use App\Enums\TripStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Trip;
 use App\Models\Client;
@@ -207,7 +208,7 @@ class TripController extends Controller
             'distance' => 'nullable|numeric',
             'trip_type' => 'required|in:one_way,round_trip,recurring',
             'notes' => 'nullable|string',
-            'status' => 'required|in:' . implode(',', \App\Enums\TripStatus::values()),
+            'status' => 'required|in:' . implode(',', TripStatus::values()),
             
             'driver_id' => 'nullable|exists:users,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
@@ -245,11 +246,62 @@ class TripController extends Controller
         return back()->with('success', 'Tracking link created. Copy it and send it to the passenger.');
     }
 
+    /**
+     * Cancel a trip.
+     *
+     * This used to delete the row. A deleted trip takes its history with it:
+     * the driver is left guessing why a run vanished from their list, and the
+     * company loses the record of a journey it may still have to account for.
+     * The trip is kept and marked cancelled instead, which also gives the
+     * driver something to be notified about.
+     */
+    public function cancel($id)
+    {
+        $trip = Trip::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
+
+        $status = $trip->statusEnum();
+
+        if ($status?->isTerminal()) {
+            return back()->with(
+                'error',
+                'This trip is already ' . strtolower($status->label()) . ' and cannot be cancelled.'
+            );
+        }
+
+        // The driver is told by the trip observer, which watches the status
+        // rather than this one action.
+        $trip->update(['status' => TripStatus::Cancelled->value]);
+
+        $message = $trip->driver_id
+            ? 'Trip cancelled. ' . ($trip->driver?->name ?: 'The driver') . ' has been notified.'
+            : 'Trip cancelled.';
+
+        return redirect()->route('dispatcher.trip.list')->with('success', $message);
+    }
+
+    /**
+     * Remove a trip from the panel.
+     *
+     * Separate from cancelling: cancelling records that a booked run did not
+     * happen, deleting says the trip should never have been on the board at
+     * all. It is a soft delete, so the signature, the status log and any
+     * invoice line keep the rows they point at — a real DELETE would cascade
+     * the first two away and quietly detach the third.
+     */
     public function destroy($id)
     {
         $trip = Trip::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
+
+        if ($trip->isBilled()) {
+            return back()->with(
+                'error',
+                'This trip is on an invoice and cannot be deleted. Cancel it instead, or remove it from the invoice first.'
+            );
+        }
+
+        // The driver is told by the trip observer if this was still their work.
         $trip->delete();
 
-        return redirect()->route('dispatcher.trip.list')->with('success', 'Trip deleted successfully!');
+        return redirect()->route('dispatcher.trip.list')->with('success', 'Trip deleted.');
     }
 }

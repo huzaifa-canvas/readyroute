@@ -37,9 +37,22 @@ abstract class DriverNotification extends Notification
         return [];
     }
 
+    /**
+     * Whether this notification belongs in the notification list.
+     *
+     * Most do: the list is the only record of them. A notification whose
+     * subject already has a screen of its own — chat being the one case — says
+     * no here, so the bell is not filled with a second copy of something the
+     * user can already see.
+     */
+    public function storesInDatabase(): bool
+    {
+        return true;
+    }
+
     public function via(object $notifiable): array
     {
-        $channels = ['database'];
+        $channels = $this->storesInDatabase() ? ['database'] : [];
 
         if (! config('readyroute.push.enabled')) {
             return $channels;

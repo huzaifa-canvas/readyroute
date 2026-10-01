@@ -16,13 +16,29 @@
     <a href="{{ route('dispatcher.trip.edit', $trip->id) }}" class="btn btn-outline-primary px-4">
       <i class="ti tabler-edit me-1"></i> Edit Trip
     </a>
-    <form action="{{ route('dispatcher.trip.delete', $trip->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to cancel/delete this trip?');">
-      @csrf
-      @method('DELETE')
-      <button type="submit" class="btn btn-danger px-4">
-        Cancel Trip
-      </button>
-    </form>
+    {{-- Cancelling keeps the trip on the record and tells the driver. Once a
+         trip is completed or already cancelled there is nothing left to do. --}}
+    @if(! $trip->statusEnum()?->isTerminal() && auth()->user()->hasPermission('trips.cancel'))
+      <form action="{{ route('dispatcher.trip.cancel', $trip->id) }}" method="POST" onsubmit="return confirm('Cancel this trip? It stays on the record and the assigned driver is notified.');">
+        @csrf
+        @method('PATCH')
+        <button type="submit" class="btn btn-warning px-4">
+          <i class="ti tabler-ban me-1"></i> Cancel Trip
+        </button>
+      </form>
+    @endif
+
+    {{-- Deleting removes the trip from the panel. Kept as the quieter of the
+         two actions, because cancelling is almost always the right one. --}}
+    @if(auth()->user()->hasPermission('trips.delete'))
+      <form action="{{ route('dispatcher.trip.delete', $trip->id) }}" method="POST" onsubmit="return confirm('Delete this trip? It is removed from the panel completely. To record that a booked trip did not happen, cancel it instead.');">
+        @csrf
+        @method('DELETE')
+        <button type="submit" class="btn btn-outline-danger px-4">
+          <i class="ti tabler-trash me-1"></i> Delete
+        </button>
+      </form>
+    @endif
   </div>
 </div>
 
@@ -46,6 +62,9 @@
     <div>
       <small class="d-block opacity-75 text-uppercase fw-semibold" style="letter-spacing: 0.5px;">Current Status</small>
       <h5 class="fw-bold mb-0 text-inherit">{{ $statusText }}</h5>
+      @if($trip->cancelled_at)
+        <small class="opacity-75">Cancelled {{ $trip->cancelled_at->format('M d, Y \a\t h:i A') }}</small>
+      @endif
     </div>
     <div class="text-end">
       <small class="opacity-75"><i class="ti tabler-clock me-1"></i>Pickup: {{ \Carbon\Carbon::parse($trip->pickup_date)->format('M d, Y') }} at {{ \Carbon\Carbon::parse($trip->pickup_time)->format('h:i A') }}</small>

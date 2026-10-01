@@ -71,6 +71,53 @@
               </div>
             </div>
 
+            {{-- Free access.
+                 Optional: leave both fields alone and the company registers
+                 with no plan, which means it can sign in and look around but
+                 cannot create anything until it subscribes. Filling them in
+                 puts the company on a plan without charging it, up to the
+                 date given. --}}
+            <hr class="my-4">
+
+            <div class="d-flex align-items-center mb-3">
+              <h6 class="mb-0 fw-semibold text-heading">
+                <i class="ti tabler-gift me-2 text-primary"></i>Free Access
+              </h6>
+              <span class="badge bg-label-secondary ms-2">Optional</span>
+            </div>
+
+            <p class="text-muted small mb-3">
+              Let this company use a plan without paying, until a date you choose. When that
+              date passes they keep their data and can still sign in, but cannot create
+              anything until they subscribe — or until you extend the date.
+            </p>
+
+            <div class="row g-4">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold" for="subscription_plan_id">Plan</label>
+                <select id="subscription_plan_id" name="subscription_plan_id"
+                        class="form-select @error('subscription_plan_id') is-invalid @enderror">
+                  <option value="">No plan — they subscribe themselves</option>
+                  @foreach($plans as $plan)
+                    <option value="{{ $plan->id }}" {{ old('subscription_plan_id') == $plan->id ? 'selected' : '' }}>
+                      {{ $plan->name }} ({{ $plan->price }}{{ $plan->billing_period ? ' / ' . $plan->billing_period : '' }})
+                    </option>
+                  @endforeach
+                </select>
+                @error('subscription_plan_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label fw-semibold" for="free_until">Free until</label>
+                <input type="date" id="free_until" name="free_until"
+                       class="form-control @error('free_until') is-invalid @enderror"
+                       min="{{ now()->addDay()->toDateString() }}"
+                       value="{{ old('free_until') }}" />
+                @error('free_until') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                <small class="text-muted">Access ends at the end of this day.</small>
+              </div>
+            </div>
+
             <div class="mt-4 pt-2">
               <button type="submit" class="btn btn-primary px-4 me-2">Register Company</button>
               <a href="{{ route('admin.company.list') }}" class="btn btn-label-secondary">Cancel</a>

@@ -147,6 +147,99 @@
       return true;
     }
 
+    /**
+     * Reset the panel in place, instead of reloading the page.
+     *
+     * The template's own reset clears its storage and then calls
+     * location.reload(), which is a full navigation: the page goes white and
+     * comes back, and anything half-typed on it is gone. Resetting is a
+     * preference change like every other control in this panel, so it should
+     * behave like one.
+     *
+     * The click is caught in the capture phase, which runs before the
+     * listener the template attached to the button, so the reload never
+     * happens — and template-customizer.js stays untouched, since it is a
+     * vendored file a theme update would overwrite.
+     *
+     * The reset then works by driving the panel's own controls rather than
+     * reimplementing what each one does. Every control is a radio (or, for
+     * semi-dark, a switch), so setting it to the default and firing `change`
+     * runs exactly the code path a person clicking it would.
+     */
+    function resetInPlace() {
+      const tc    = window.templateCustomizer;
+      const panel = document.getElementById('template-customizer');
+
+      // The background is ours, and the template's reset never knew about it:
+      // before this, a reset left the chosen background in place.
+      document.cookie = cookie + '=;path=/;max-age=0;SameSite=Lax';
+      window.readyRouteApplySurface('default');
+
+      document.querySelectorAll('.rr-surface-swatch').forEach(function (swatch) {
+        swatch.setAttribute('aria-pressed', swatch.dataset.surface === 'default' ? 'true' : 'false');
+      });
+
+      if (!tc || !panel) return;
+
+      const defaults = tc.settings;
+
+      const wanted = {
+        colorRadioIcon:     defaults.defaultPrimaryColor,
+        customRadioIcon:    defaults.defaultTheme,
+        skinRadios:         defaults.defaultSkin && defaults.defaultSkin.name,
+        layoutsRadios:      defaults.defaultMenuCollapsed ? 'collapsed' : 'expanded',
+        navbarOptionRadios: defaults.defaultNavbarType,
+        contentRadioIcon:   defaults.defaultContentLayout,
+        directionRadioIcon: defaults.defaultTextDir ? 'rtl' : 'ltr'
+      };
+
+      Object.keys(wanted).forEach(function (name) {
+        const value = wanted[name];
+        if (!value) return;
+
+        const radios = panel.querySelectorAll('input[name="' + name + '"]');
+        if (!radios.length) return;
+
+        // Colours are compared without case, since the panel spells them in
+        // upper case and the configured default may not.
+        const target = [...radios].find(function (radio) {
+          return String(radio.value).toLowerCase() === String(value).toLowerCase();
+        });
+
+        // Already on its default, so there is nothing to put back. Skipping
+        // also matters for direction, which the template handles with a
+        // reload of its own — a reset should never trigger that needlessly.
+        if (!target || target.checked) return;
+
+        radios.forEach(function (radio) { radio.checked = false; });
+        target.checked = true;
+        target.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      // Semi-dark is a switch rather than a radio group.
+      const semiDark = panel.querySelector('.template-customizer-semi-dark-switch');
+
+      if (semiDark && semiDark.checked !== !!defaults.defaultSemiDark) {
+        semiDark.checked = !!defaults.defaultSemiDark;
+        semiDark.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
+      // Last, not first: each change above writes its new value to storage as
+      // it goes, so the clear has to come after them. It also takes the dot
+      // off the reset button, which is what says "something is customised".
+      tc.clearLocalStorage();
+    }
+
+    document.addEventListener('click', function (event) {
+      const button = event.target.closest('.template-customizer-reset-btn');
+      if (!button) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      resetInPlace();
+    }, true);
+
     if (build()) return;
 
     // The customizer renders after its own script runs, so wait for the panel

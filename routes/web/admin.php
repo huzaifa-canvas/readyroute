@@ -38,6 +38,8 @@ Route::prefix('admin')->middleware(['auth', 'role:admin'])->group(function () {
     Route::put('companies/{id}', [CompanyController::class, 'update'])->whereNumber('id')->name('admin.company.update');
 
     Route::post('companies/{id}/suspend', [CompanyController::class, 'suspend'])->whereNumber('id')->name('admin.company.suspend');
+    // Grant, extend or withdraw a company's free access to a plan.
+    Route::post('companies/{id}/free-access', [CompanyController::class, 'freeAccess'])->whereNumber('id')->name('admin.company.free-access');
     Route::post('companies/{id}/activate', [CompanyController::class, 'activate'])->whereNumber('id')->name('admin.company.activate');
     Route::post('companies/{id}/restore', [CompanyController::class, 'restore'])->whereNumber('id')->name('admin.company.restore');
     Route::delete('companies/{id}/force', [CompanyController::class, 'forceDelete'])->whereNumber('id')->name('admin.company.force-delete');

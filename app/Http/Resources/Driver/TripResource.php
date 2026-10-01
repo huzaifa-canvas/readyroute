@@ -68,6 +68,12 @@ class TripResource extends JsonResource
             'step_label'   => $status?->stepLabel(),
             'is_finished'  => (bool) $status?->isTerminal(),
 
+            // Cancelled by the dispatcher. The trip is still readable, but
+            // next_action below is null and every write is refused, so the app
+            // should render it as a record rather than a job.
+            'is_cancelled' => $this->isCancelled(),
+            'cancelled_at' => optional($this->cancelled_at)->toIso8601String(),
+
             'confirmation_status' => $this->confirmation_status?->value,
             'confirmation_label'  => $this->confirmation_status?->label(),
             'confirmed_at'        => optional($this->confirmed_at)->toIso8601String(),

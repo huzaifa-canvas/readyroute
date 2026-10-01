@@ -50,7 +50,14 @@
     <li class="nav-item dropdown me-2 me-xl-1">
       <a class="nav-link dropdown-toggle hide-arrow" id="nav-theme" href="javascript:void(0);"
           data-bs-toggle="dropdown">
-          <i class="icon-base ti tabler-sun icon-md theme-icon-active"></i>
+          {{-- text-heading, like the messages and notification icons beside
+               it. Without it this is the one navbar glyph whose colour is
+               inherited from the link rather than pinned to the theme, so any
+               state that changes the link's colour takes the icon with it.
+               Safe to add: the template rewrites this element's class list
+               when the theme changes, but it keeps everything that is not a
+               tabler-* class. --}}
+          <i class="icon-base ti tabler-sun icon-md theme-icon-active text-heading"></i>
           <span class="d-none ms-2" id="nav-theme-text">Toggle theme</span>
         </a>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="nav-theme-text">
@@ -93,20 +100,29 @@
             ->whereNull('read_at')->count()
         : 0)
 
+    {{-- The count badges sit on the list item, not inside the button.
+
+         Vuexy's own bell carries a `badge-dot` — a dot small enough to sit
+         well inside the round button — so the stock template never runs into
+         this. A badge with a number in it is 20px and reaches past the
+         circle's edge, where node-waves' `overflow: hidden` (which keeps the
+         click ripple inside the button) and the pill radius cut the corner
+         off it. Anchored one level up there is nothing to clip it, the button
+         keeps its ripple, and `pointer-events: none` leaves the whole icon a
+         single click target. --}}
+
     <!-- Driver messages -->
-    <li class="nav-item me-2 me-xl-1">
+    <li class="nav-item me-2 me-xl-1 position-relative">
       <a class="nav-link btn btn-icon btn-text-secondary rounded-pill"
          href="{{ route('dispatcher.messages.index') }}"
          aria-label="Driver messages" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Driver messages">
-        <span class="position-relative">
-          <i class="icon-base ti tabler-message-circle icon-22px text-heading"></i>
-          {{-- Hidden at zero rather than removed, so the poller can reveal it
-               without rebuilding the markup. --}}
-          <span id="navMessageCount"
-                class="badge rounded-pill bg-danger badge-center h-px-20 w-px-20 position-absolute top-0 start-100 translate-middle {{ $navUnreadMessages > 0 ? '' : 'd-none' }}"
-                style="font-size:.6875rem;">{{ $navUnreadMessages > 99 ? '99+' : $navUnreadMessages }}</span>
-        </span>
+        <i class="icon-base ti tabler-message-circle icon-22px text-heading"></i>
       </a>
+      {{-- Hidden at zero rather than removed, so the poller can reveal it
+           without rebuilding the markup. --}}
+      <span id="navMessageCount"
+            class="badge rounded-pill bg-danger badge-center h-px-20 position-absolute {{ $navUnreadMessages > 0 ? '' : 'd-none' }}"
+            style="top:-2px; inset-inline-end:-2px; font-size:.6875rem; min-inline-size:20px; inline-size:auto; padding-inline:.3rem; pointer-events:none;">{{ $navUnreadMessages > 99 ? '99+' : $navUnreadMessages }}</span>
     </li>
     <!--/ Driver messages -->
 
@@ -115,13 +131,11 @@
       <a class="nav-link dropdown-toggle hide-arrow btn btn-icon btn-text-secondary rounded-pill"
          href="javascript:void(0);" data-bs-toggle="dropdown" data-bs-auto-close="outside"
          aria-expanded="false" aria-label="Notifications">
-        <span class="position-relative">
-          <i class="icon-base ti tabler-bell icon-22px text-heading"></i>
-          <span id="navNotificationCount"
-                class="badge rounded-pill bg-danger badge-center h-px-20 w-px-20 position-absolute top-0 start-100 translate-middle {{ $navUnread > 0 ? '' : 'd-none' }}"
-                style="font-size:.6875rem;">{{ $navUnread > 99 ? '99+' : $navUnread }}</span>
-        </span>
+        <i class="icon-base ti tabler-bell icon-22px text-heading"></i>
       </a>
+      <span id="navNotificationCount"
+            class="badge rounded-pill bg-danger badge-center h-px-20 position-absolute {{ $navUnread > 0 ? '' : 'd-none' }}"
+            style="top:-2px; inset-inline-end:-2px; font-size:.6875rem; min-inline-size:20px; inline-size:auto; padding-inline:.3rem; pointer-events:none;">{{ $navUnread > 99 ? '99+' : $navUnread }}</span>
 
       <ul class="dropdown-menu dropdown-menu-end p-0">
         <li class="dropdown-menu-header border-bottom">

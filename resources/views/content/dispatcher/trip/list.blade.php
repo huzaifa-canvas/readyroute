@@ -100,13 +100,30 @@
               <a href="{{ route('dispatcher.trip.edit', $trip->id) }}" class="btn btn-icon btn-sm btn-label-primary" title="Edit Trip">
                 <i class="ti tabler-edit"></i>
               </a>
-              <form action="{{ route('dispatcher.trip.delete', $trip->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this trip?');">
-                @csrf
-                @method('DELETE')
-                <button type="submit" class="btn btn-icon btn-sm btn-label-danger" title="Delete Trip">
-                  <i class="ti tabler-trash"></i>
-                </button>
-              </form>
+              {{-- Cancel marks a booked run as not happening and keeps it on
+                   the board. A finished or already cancelled trip has nothing
+                   left to cancel, so the control is simply not offered. --}}
+              @if(! $tripStatus?->isTerminal() && auth()->user()->hasPermission('trips.cancel'))
+                <form action="{{ route('dispatcher.trip.cancel', $trip->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Cancel this trip? It stays on the record and the assigned driver is notified.');">
+                  @csrf
+                  @method('PATCH')
+                  <button type="submit" class="btn btn-icon btn-sm btn-label-warning" title="Cancel Trip">
+                    <i class="ti tabler-ban"></i>
+                  </button>
+                </form>
+              @endif
+
+              {{-- Delete takes the trip off the panel altogether, for one that
+                   should never have been booked. --}}
+              @if(auth()->user()->hasPermission('trips.delete'))
+                <form action="{{ route('dispatcher.trip.delete', $trip->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this trip? It is removed from the panel completely. To record that a booked trip did not happen, cancel it instead.');">
+                  @csrf
+                  @method('DELETE')
+                  <button type="submit" class="btn btn-icon btn-sm btn-label-danger" title="Delete Trip">
+                    <i class="ti tabler-trash"></i>
+                  </button>
+                </form>
+              @endif
             </div>
           </td>
         </tr>

@@ -18,11 +18,11 @@
     @endunless
 
     <div class="chat-message-wrapper flex-grow-1">
-      <div class="chat-message-text">
+      <div class="chat-message-text" title="{{ $message->created_at->format('D j M, g:i A') }}">
         <p class="mb-0">{{ $message->body }}</p>
       </div>
 
-      <div class="{{ $mine ? 'text-end ' : '' }}text-body-secondary mt-1">
+      <div class="chat-message-time {{ $mine ? 'text-end ' : '' }}text-body-secondary mt-1">
         @if($mine)
           {{-- Sent vs read, the same single/double tick the driver app shows --}}
           <i class="icon-base ti {{ $message->isRead() ? 'tabler-checks text-success' : 'tabler-check' }} icon-16px me-1"

@@ -34,6 +34,12 @@ class TripListResource extends JsonResource
             'status'       => $status?->value,
             'status_label' => $status?->label(),
 
+            // A cancelled trip stays on the list but is read-only: the app
+            // should show the row greyed out with no action on it.
+            'is_cancelled' => $this->isCancelled(),
+            'is_finished'  => (bool) $status?->isTerminal(),
+            'cancelled_at' => optional($this->cancelled_at)->toIso8601String(),
+
             'confirmation_status' => $this->confirmation_status?->value,
             'confirmation_label'  => $this->confirmation_status?->label(),
 

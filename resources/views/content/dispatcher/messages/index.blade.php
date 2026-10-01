@@ -11,6 +11,64 @@
 <script src="{{ asset('assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js') }}"></script>
 @endsection
 
+@section('page-style')
+<style>
+  /*
+    The template leaves 3rem between every message. That reads well in its demo,
+    where the messages are paragraphs, but dispatch traffic is mostly one or two
+    words — at 3rem apiece five messages filled 1170px and the conversation was
+    mostly empty space. Messages sit closer together, and the larger gap is
+    spent where it carries meaning: where the speaker changes.
+
+    The selector repeats the template's own chain so it has equal weight and
+    wins on source order, rather than being forced through with !important.
+  */
+  .app-chat .app-chat-history .chat-history-body .chat-history .chat-message:not(:last-child) {
+    margin-block-end: .75rem;
+  }
+
+  .app-chat .chat-history .chat-message + .chat-message-right,
+  .app-chat .chat-history .chat-message-right + .chat-message:not(.chat-message-right) {
+    margin-block-start: 1.75rem;
+  }
+
+  /* A run from one speaker repeats their avatar on every line. Hide it after
+     the first, keeping the space so the bubbles stay on one edge. */
+  .app-chat .chat-history .chat-message:not(.chat-message-right) + .chat-message:not(.chat-message-right) .user-avatar .avatar,
+  .app-chat .chat-history .chat-message-right + .chat-message-right .user-avatar .avatar {
+    visibility: hidden;
+  }
+
+  /* Likewise the timestamp: the last message of a run carries the time for the
+     whole run. The row is removed rather than just hidden, so a run of short
+     replies actually closes up instead of leaving a blank line under each one.
+     Every bubble still carries its own exact time in its title attribute, so
+     one can be read without the layout moving. */
+  .app-chat .chat-history .chat-message:has(+ .chat-message:not(.chat-message-right)):not(.chat-message-right) .chat-message-time,
+  .app-chat .chat-history .chat-message-right:has(+ .chat-message-right) .chat-message-time {
+    display: none;
+  }
+
+  /* The date divider is not a message and must not count as one for the rules
+     above, or the first message of a day would lose its avatar. */
+  .app-chat .chat-history .chat-date-divider {
+    margin-block: 1.25rem;
+  }
+
+  /* Long words and pasted links must wrap rather than widen the bubble. */
+  .app-chat .chat-history .chat-message-text {
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 575.98px) {
+    /* On a phone the bubbles get the width back that the avatars were using. */
+    .app-chat .chat-history .chat-message .chat-message-wrapper {
+      max-inline-size: 100%;
+    }
+  }
+</style>
+@endsection
+
 @section('content')
 <div class="container-xxl flex-grow-1 container-p-y">
 
@@ -152,7 +210,7 @@
 
                 @foreach($messages as $message)
                   @if($message->created_at->toDateString() !== $lastDate)
-                    <li class="chat-message text-center my-3">
+                    <li class="chat-date-divider text-center">
                       <span class="badge bg-label-secondary">
                         {{ $message->created_at->isToday() ? 'Today'
                            : ($message->created_at->isYesterday() ? 'Yesterday'
@@ -270,9 +328,10 @@
       wrapper.className = 'chat-message-wrapper flex-grow-1';
       const box = document.createElement('div');
       box.className = 'chat-message-text';
+      if (m.time) box.title = m.time;
       box.appendChild(text);
       const meta = document.createElement('div');
-      meta.className = (m.is_mine ? 'text-end ' : '') + 'text-body-secondary mt-1';
+      meta.className = 'chat-message-time ' + (m.is_mine ? 'text-end ' : '') + 'text-body-secondary mt-1';
       meta.innerHTML = (m.is_mine ? '<i class="icon-base ti tabler-check icon-16px me-1"></i>' : '') +
                        '<small>' + (m.time || '') + '</small>';
       wrapper.appendChild(box);

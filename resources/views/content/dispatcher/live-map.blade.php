@@ -5,6 +5,15 @@
 @section('vendor-style')
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
+  /* Map pins, route lines and the accent furniture below all follow the
+     Primary Color chosen in the customizer. --rr-accent-deep is the one
+     derived shade: it keeps the driver pin distinguishable from the pickup
+     pin whatever the accent is. */
+  :root {
+    --rr-accent-deep: color-mix(in srgb, var(--bs-primary) 62%, #000000);
+    --rr-accent-mid: color-mix(in srgb, var(--bs-primary) 78%, #000000);
+    --rr-accent-hover: color-mix(in srgb, var(--bs-primary) 85%, #000000);
+  }
   .live-map-card {
     border-radius: 14px;
     overflow: hidden;
@@ -116,15 +125,15 @@
     <div class="map-legend">
       <div class="fw-bold text-heading mb-2">Map Legend</div>
       <div class="legend-item">
-        <span class="legend-dot" style="background: #0052ff;"></span>
+        <span class="legend-dot" style="background: var(--bs-primary);"></span>
         <span>Pickup Location</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background: #002c8a;"></span>
+        <span class="legend-dot" style="background: var(--rr-accent-deep);"></span>
         <span>Active Driver (D)</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style="background: #00c853;"></span>
+        <span class="legend-dot" style="background: var(--bs-success);"></span>
         <span>Completed Trip</span>
       </div>
     </div>
@@ -157,21 +166,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Custom Icon Definitions
     const pickupIcon = L.divIcon({
       className: 'custom-pickup-icon',
-      html: `<div style="background-color:#0052ff; width:26px; height:26px; border-radius:50%; border:3px solid #fff; box-shadow:0 3px 8px rgba(0,0,0,0.35);"></div>`,
+      html: `<div style="background-color:var(--bs-primary); width:26px; height:26px; border-radius:50%; border:3px solid #fff; box-shadow:0 3px 8px rgba(0,0,0,0.35);"></div>`,
       iconSize: [26, 26],
       iconAnchor: [13, 13]
     });
 
     const driverIcon = L.divIcon({
       className: 'custom-driver-icon',
-      html: `<div style="background-color:#002c8a; width:34px; height:34px; border-radius:50%; border:3px solid #fff; color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:bold; box-shadow:0 3px 10px rgba(0,0,0,0.45);">D</div>`,
+      html: `<div style="background-color:var(--rr-accent-deep); width:34px; height:34px; border-radius:50%; border:3px solid #fff; color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:bold; box-shadow:0 3px 10px rgba(0,0,0,0.45);">D</div>`,
       iconSize: [34, 34],
       iconAnchor: [17, 17]
     });
 
     const destinationIcon = L.divIcon({
       className: 'custom-dest-icon',
-      html: `<div style="background-color:#00c853; width:26px; height:26px; border-radius:50%; border:3px solid #fff; box-shadow:0 3px 8px rgba(0,0,0,0.35);"></div>`,
+      html: `<div style="background-color:var(--bs-success); width:26px; height:26px; border-radius:50%; border:3px solid #fff; box-shadow:0 3px 8px rgba(0,0,0,0.35);"></div>`,
       iconSize: [26, 26],
       iconAnchor: [13, 13]
     });
@@ -215,7 +224,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const note = L.control({ position: 'topright' });
       note.onAdd = function () {
         const div = L.DomUtil.create('div', 'leaflet-bar');
-        div.style.cssText = 'background:#fff;padding:.5rem .75rem;font-size:.8125rem;color:#6f6b7d;border-radius:.375rem;';
+        div.style.cssText = 'background:var(--bs-paper-bg);padding:.5rem .75rem;font-size:.8125rem;color:var(--bs-body-color);border-radius:.375rem;';
         div.textContent = 'No geocoded trips or driver positions yet';
         return div;
       };

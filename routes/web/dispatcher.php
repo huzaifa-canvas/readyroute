@@ -31,6 +31,10 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     Route::get('trip/details/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'show'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.details');
     Route::get('trip/edit/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'edit'])->middleware('plan:trips')->middleware('permission:trips.edit')->name('dispatcher.trip.edit');
     Route::put('trip/update/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'update'])->middleware('plan:trips')->middleware('permission:trips.edit')->name('dispatcher.trip.update');
+    // Two different things, behind two different permissions. Cancelling marks
+    // a booked run as not happening and keeps it on the board; deleting takes
+    // the trip off the panel altogether.
+    Route::patch('trip/cancel/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'cancel'])->middleware('plan:trips')->middleware('permission:trips.cancel')->name('dispatcher.trip.cancel');
     Route::delete('trip/delete/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'destroy'])->middleware('plan:trips')->middleware('permission:trips.delete')->name('dispatcher.trip.delete');
     Route::post('trip/{id}/tracking-link', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'trackingLink'])->whereNumber('id')->middleware('plan:trips')->middleware('permission:trips.edit')->name('dispatcher.trip.tracking-link');
     Route::post('trip/assign/{id}', [App\Http\Controllers\Web\Dispatcher\DashboardController::class, 'assignDriver'])->middleware('plan:trips')->middleware('permission:trips.assign')->name('dispatcher.trip.assign');

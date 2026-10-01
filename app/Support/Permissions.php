@@ -26,7 +26,8 @@ class Permissions
                 'trips.create' => 'Create trips',
                 'trips.edit'   => 'Edit trips',
                 'trips.assign' => 'Assign trips to drivers',
-                'trips.delete' => 'Cancel or delete trips',
+                'trips.cancel' => 'Cancel trips',
+                'trips.delete' => 'Delete trips from the panel',
             ],
             'Drivers' => [
                 'drivers.view'       => 'View drivers',
@@ -132,7 +133,7 @@ class Permissions
                 'slug'        => 'standard-dispatcher',
                 'description' => 'Runs day-to-day dispatch: trips, drivers, clients, fleet and messaging.',
                 'permissions' => [
-                    'trips.view', 'trips.create', 'trips.edit', 'trips.assign',
+                    'trips.view', 'trips.create', 'trips.edit', 'trips.assign', 'trips.cancel',
                     'drivers.view', 'drivers.compliance',
                     'clients.view', 'clients.manage', 'clients.notes',
                     'fleet.view',

@@ -15,6 +15,22 @@ class NewMessageNotification extends DriverNotification
     {
     }
 
+    /**
+     * Chat stays out of the notification list.
+     *
+     * A message is already a row in the messages table, already shown on the
+     * chat screen, and already counted by the unread badge on the Messages
+     * icon. Writing a notification row as well put every message in the bell a
+     * second time, so a busy conversation buried the things the list exists
+     * for — incidents, SOS alerts and trip changes. Delivery is unaffected:
+     * the socket still updates an open chat, and push still reaches a phone
+     * that is not looking at it.
+     */
+    public function storesInDatabase(): bool
+    {
+        return false;
+    }
+
     public function kind(): string
     {
         return 'new_message';

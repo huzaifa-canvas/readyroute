@@ -5,24 +5,33 @@
 @section('vendor-style')
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
+  /* Map pins, route lines and the accent furniture below all follow the
+     Primary Color chosen in the customizer. --rr-accent-deep is the one
+     derived shade: it keeps the driver pin distinguishable from the pickup
+     pin whatever the accent is. */
+  :root {
+    --rr-accent-deep: color-mix(in srgb, var(--bs-primary) 62%, #000000);
+    --rr-accent-mid: color-mix(in srgb, var(--bs-primary) 78%, #000000);
+    --rr-accent-hover: color-mix(in srgb, var(--bs-primary) 85%, #000000);
+  }
   .unassigned-trip-card {
     border-radius: 12px;
-    border: 1px solid rgba(0, 0, 0, 0.07);
+    border: 1px solid var(--bs-border-color);
     box-shadow: 0 2px 10px 0 rgba(0, 0, 0, 0.03);
-    background: #ffffff;
+    background: var(--bs-paper-bg);
     padding: 18px 20px;
     margin-bottom: 14px;
     cursor: pointer;
     transition: all 0.2s ease;
   }
   .unassigned-trip-card:hover {
-    border-color: #0052ff;
-    box-shadow: 0 4px 14px rgba(0, 82, 255, 0.08);
+    border-color: var(--bs-primary);
+    box-shadow: 0 4px 14px rgba(var(--bs-primary-rgb), 0.08);
   }
   .unassigned-trip-card.active-trip-card {
-    border-left: 4px solid #0052ff !important;
-    background-color: #f6f8fe !important;
-    box-shadow: 0 4px 16px rgba(0, 82, 255, 0.12);
+    border-left: 4px solid var(--bs-primary) !important;
+    background-color: color-mix(in srgb, var(--bs-primary) 12%, var(--bs-paper-bg)) !important;
+    box-shadow: 0 4px 16px rgba(var(--bs-primary-rgb), 0.12);
   }
   .badge-needs-assignment {
     background-color: #fde8e8;
@@ -48,8 +57,8 @@
     z-index: 1;
   }
   .btn-optimize {
-    background-color: #0052ff;
-    color: #ffffff;
+    background-color: var(--bs-primary);
+    color: var(--bs-primary-contrast, #ffffff);
     font-weight: 700;
     border-radius: 8px;
     padding: 10px 24px;
@@ -58,8 +67,8 @@
     transition: background-color 0.2s ease;
   }
   .btn-optimize:hover {
-    background-color: #0040cd;
-    color: #ffffff;
+    background-color: var(--rr-accent-hover);
+    color: var(--bs-primary-contrast, #ffffff);
   }
   .filter-pill-btn {
     border-radius: 20px;
@@ -102,7 +111,7 @@
 {{-- Header Row: Page Title & Optimize Button --}}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div>
-    <h3 class="fw-bold text-dark mb-1">Smart Auto-Dispatch</h3>
+    <h3 class="fw-bold text-heading mb-1">Smart Auto-Dispatch</h3>
     <p class="text-muted small mb-0">Select any trip to view live route or run auto-optimization</p>
   </div>
   
@@ -121,7 +130,7 @@
     
     {{-- Top Filter Pills Bar --}}
     <div class="d-flex align-items-center justify-content-between mb-3">
-      <h5 class="fw-bold text-dark mb-0">Trip Pool</h5>
+      <h5 class="fw-bold text-heading mb-0">Trip Pool</h5>
 
       {{-- Interactive Filter Buttons --}}
       <div class="btn-group btn-group-sm" role="group" aria-label="Trip Status Filter">
@@ -152,7 +161,7 @@
              data-status="{{ $isAssigned ? 'assigned' : 'unassigned' }}"
              onclick="selectTripRoute(this, {{ $pLat }}, {{ $pLng }}, {{ $dLat }}, {{ $dLng }}, 'Trip #{{ $tripNum }} — {{ $trip->first_name }} {{ $trip->last_name }}', '{{ $trip->pickup_address }}', '{{ $trip->dropoff_address }}')">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <h6 class="fw-bold text-dark mb-0 fs-5">Trip #{{ $tripNum }} — {{ $trip->first_name }} {{ $trip->last_name }}</h6>
+            <h6 class="fw-bold text-heading mb-0 fs-5">Trip #{{ $tripNum }} — {{ $trip->first_name }} {{ $trip->last_name }}</h6>
             @if($isAssigned)
               <span class="badge-assigned-driver">Assigned: {{ $trip->driver ? $trip->driver->name : 'Driver' }}</span>
             @else
@@ -284,14 +293,14 @@ function selectTripRoute(cardElement, pLat, pLng, dLat, dLng, tripTitle, pickupA
   // Blue Pin Marker Icons
   const pickupMarkerIcon = L.divIcon({
     className: 'custom-pickup-pin',
-    html: `<div style="background-color:#0052ff; width:34px; height:34px; border-radius:50%; border:3px solid #fff; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(0,82,255,0.4);"><i class="ti tabler-map-pin" style="font-size:18px;"></i></div>`,
+    html: `<div style="background-color:var(--bs-primary); width:34px; height:34px; border-radius:50%; border:3px solid #fff; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(var(--bs-primary-rgb),0.4);"><i class="ti tabler-map-pin" style="font-size:18px;"></i></div>`,
     iconSize: [34, 34],
     iconAnchor: [17, 17]
   });
 
   const dropoffMarkerIcon = L.divIcon({
     className: 'custom-dropoff-pin',
-    html: `<div style="background-color:#0038a8; width:34px; height:34px; border-radius:50%; border:3px solid #fff; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(0,0,0,0.3);"><i class="ti tabler-map-pin" style="font-size:18px;"></i></div>`,
+    html: `<div style="background-color:var(--rr-accent-mid); width:34px; height:34px; border-radius:50%; border:3px solid #fff; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(0,0,0,0.3);"><i class="ti tabler-map-pin" style="font-size:18px;"></i></div>`,
     iconSize: [34, 34],
     iconAnchor: [17, 17]
   });
@@ -311,8 +320,11 @@ function selectTripRoute(cardElement, pLat, pLng, dLat, dLng, tripTitle, pickupA
     [lat2, lng2]
   ];
 
+  const accent = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bs-primary').trim() || '#7367f0';
+
   activePolyline = L.polyline(routeCoords, {
-    color: '#0052ff',
+    color: accent,
     weight: 5,
     opacity: 0.9,
     lineJoin: 'round'

@@ -20,12 +20,12 @@ class NotificationController extends Controller
      * unfiltered list rather than disappearing.
      */
     private const KINDS = [
-        'sos'          => 'Emergency',
-        'incident'     => 'Incidents',
-        'new_message'  => 'Messages',
-        'trip_added'   => 'Trips',
-        'route_change' => 'Route changes',
-        'reminder'     => 'Reminders',
+        'sos'            => 'Emergency',
+        'incident'       => 'Incidents',
+        'trip_added'     => 'Trips',
+        'trip_cancelled' => 'Cancellations',
+        'route_change'   => 'Route changes',
+        'reminder'       => 'Reminders',
     ];
 
     public function index(Request $request)
