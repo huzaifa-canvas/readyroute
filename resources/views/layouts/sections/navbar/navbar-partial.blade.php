@@ -415,7 +415,28 @@
       }
     }
 
-    setInterval(tick, 30000);
+    /*
+     * Polling stays, as the thing that keeps the counts right when the socket
+     * is down. When the socket is up it only has to cover the gap left by a
+     * missed event, so it runs far less often.
+     */
+    var FAST_POLL = 30000;
+    var SLOW_POLL = 120000;
+    var timer = setInterval(tick, FAST_POLL);
+
+    function repoll(every) {
+      clearInterval(timer);
+      timer = setInterval(tick, every);
+    }
+
+    window.addEventListener('rr:connected', function () { repoll(SLOW_POLL); });
+    window.addEventListener('rr:disconnected', function () { repoll(FAST_POLL); tick(); });
+
+    // A new message or notification refreshes the counts straight away,
+    // through the same request the poll uses rather than a second code path.
+    ['rr:message:new', 'rr:notification:new', 'rr:incident:new'].forEach(function (event) {
+      window.addEventListener(event, function () { tick(); });
+    });
 
     // Catch up immediately when the tab comes back rather than waiting out
     // the rest of the interval.

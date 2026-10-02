@@ -26,6 +26,10 @@
 {{-- The Background swatches, added to the template's customizer panel. --}}
 @include('_partials._surface-theme-control')
 
+{{-- Realtime. Included before the page scripts so a page can listen for its
+     events at load; inert until SOCKET_PUBLIC_URL is set. --}}
+@include('_partials._realtime')
+
 <!-- BEGIN: Page JS-->
 @yield('page-script')
 <!-- END: Page JS-->

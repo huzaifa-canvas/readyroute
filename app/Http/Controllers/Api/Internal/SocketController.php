@@ -43,6 +43,16 @@ class SocketController extends Controller
             return $this->fail('Token has expired.', 401);
         }
 
+        /*
+         * A token can also carry its own expiry, which the global setting
+         * above does not cover. The panel issues short-lived tokens that way,
+         * so without this check one would keep a socket open long after it had
+         * stopped working for the API.
+         */
+        if ($accessToken->expires_at && $accessToken->expires_at->isPast()) {
+            return $this->fail('Token has expired.', 401);
+        }
+
         $user = $accessToken->tokenable;
 
         if (! $user instanceof User) {

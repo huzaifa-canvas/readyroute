@@ -107,6 +107,8 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
 
     // Every navbar badge in one poll.
     Route::get('navbar/summary', [App\Http\Controllers\Web\Dispatcher\NavbarController::class, 'summary'])->name('dispatcher.navbar.summary');
+    // The token the panel opens its realtime socket with.
+    Route::get('socket-token', [App\Http\Controllers\Web\Dispatcher\SocketTokenController::class, 'show'])->name('dispatcher.socket-token');
 
     // ── Notification Center ───────────────────────
     Route::get('notifications', [App\Http\Controllers\Web\Dispatcher\NotificationController::class, 'index'])->name('dispatcher.notifications.index');

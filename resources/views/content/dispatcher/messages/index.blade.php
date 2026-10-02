@@ -371,7 +371,28 @@
       }
     }
 
-    setInterval(poll, 5000);
+    /*
+     * Polling is the floor, not the mechanism. The socket simply calls poll()
+     * the moment something arrives, so messages render through exactly the
+     * one path they always did — and poll() already skips anything whose
+     * bubble is on the page, so an event and a poll landing together cannot
+     * show the message twice.
+     *
+     * With the socket up the interval only has to cover a missed event, so it
+     * drops to a slow safety net.
+     */
+    const FAST_POLL = 5000;
+    const SLOW_POLL = 30000;
+    let pollTimer = setInterval(poll, FAST_POLL);
+
+    function repoll(every) {
+      clearInterval(pollTimer);
+      pollTimer = setInterval(poll, every);
+    }
+
+    window.addEventListener('rr:connected', function () { repoll(SLOW_POLL); });
+    window.addEventListener('rr:disconnected', function () { repoll(FAST_POLL); poll(); });
+    window.addEventListener('rr:message:new', function () { poll(); });
     @endif
   });
 </script>
