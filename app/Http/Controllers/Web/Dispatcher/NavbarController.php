@@ -75,6 +75,7 @@ class NavbarController extends Controller
     {
         return match (true) {
             ! empty($data['incident_id']) => route('dispatcher.incidents.show', $data['incident_id']),
+            ! empty($data['inspection_id']) => route('dispatcher.driver.show', $data['driver_id']),
             ! empty($data['trip_id'])     => route('dispatcher.trip.details', $data['trip_id']),
             ! empty($data['driver_id'])   => route('dispatcher.messages.index', ['driver' => $data['driver_id']]),
             default                       => route('dispatcher.notifications.index'),

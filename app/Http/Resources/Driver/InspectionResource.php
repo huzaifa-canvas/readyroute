@@ -27,6 +27,8 @@ class InspectionResource extends JsonResource
 
             'status'       => $this->status?->value,
             'is_submitted' => $this->isSubmitted(),
+            'inspection_cleared_today' => $this->isSubmitted()
+                && $this->inspection_date?->isToday(),
             'has_defects'  => (bool) $this->has_defects,
             'submitted_at' => optional($this->submitted_at)->toIso8601String(),
 

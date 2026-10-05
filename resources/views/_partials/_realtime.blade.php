@@ -33,7 +33,12 @@
       let config;
 
       try {
-        const response = await fetch(tokenUrl, { headers: { 'Accept': 'application/json' } });
+        // no-store, or the browser can serve a cached copy and keep handing
+        // back the address the socket server used to be on after it moves.
+        const response = await fetch(tokenUrl, {
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-store',
+        });
         if (!response.ok) return;
         config = await response.json();
       } catch (error) {

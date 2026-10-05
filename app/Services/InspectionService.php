@@ -9,6 +9,7 @@ use App\Models\InspectionResponse;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleInspection;
+use App\Notifications\InspectionDefectNotification;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -23,8 +24,10 @@ use RuntimeException;
  */
 class InspectionService
 {
-    public function __construct(private readonly SignatureService $signatures)
-    {
+    public function __construct(
+        private readonly SignatureService $signatures,
+        private readonly SocketEmitter $socket,
+    ) {
     }
 
     /**
@@ -215,7 +218,7 @@ class InspectionService
 
         $path = $this->signatures->storeImage($signaturePayload, 'inspection-' . $inspection->id);
 
-        return DB::transaction(function () use ($inspection, $path) {
+        $inspection = DB::transaction(function () use ($inspection, $path) {
             $previous = $inspection->signature_path;
 
             $inspection->forceFill([
@@ -228,8 +231,43 @@ class InspectionService
                 $this->signatures->delete($previous);
             }
 
-            return $inspection->fresh(['responses.item', 'vehicle']);
+            return $inspection->fresh(['responses.item', 'vehicle', 'driver']);
         });
+
+        if ($inspection->has_defects) {
+            $this->alertDefects($inspection);
+        }
+
+        return $inspection;
+    }
+
+    /**
+     * Tell the office about a vehicle signed off with defects: a socket event
+     * for anyone with the panel open, and a notification for everyone else.
+     * Runs after the commit, so a failed alert never undoes the inspection.
+     */
+    private function alertDefects(VehicleInspection $inspection): void
+    {
+        $companyId = $inspection->dispatcher_id;
+
+        $recipients = User::query()
+            ->where('id', $companyId)
+            ->orWhere(fn ($q) => $q->where('dispatcher_id', $companyId)->where('role', 'dispatcher'))
+            ->get();
+
+        foreach ($recipients as $recipient) {
+            $recipient->notify(new InspectionDefectNotification($inspection));
+        }
+
+        $payload = [
+            'kind'          => 'inspection_defect',
+            'inspection_id' => $inspection->id,
+            'driver_id'     => $inspection->driver_id,
+            'vehicle_id'    => $inspection->vehicle_id,
+        ];
+
+        $this->socket->queue(SocketEmitter::dispatcherRoom($companyId), 'notification:new', $payload);
+        $this->socket->queue(SocketEmitter::userRoom($companyId), 'notification:new', $payload);
     }
 
     /**
@@ -258,21 +296,43 @@ class InspectionService
 
     /**
      * Whether a driver has cleared the vehicle for the day. The dispatcher
-     * panel can use this to see who has not inspected yet.
+     * panel can use this to see who has not inspected yet, and the trip
+     * lifecycle uses it to hold a driver back until they have.
      */
-    public function isClearedToday(User $driver): bool
+    public function isClearedToday(User $driver, ?int $vehicleId = null): bool
     {
-        $vehicle = $driver->assignedVehicle;
+        $vehicleId ??= $driver->assignedVehicle?->id;
 
-        if (! $vehicle) {
+        if (! $vehicleId) {
             return false;
         }
 
         return VehicleInspection::where('driver_id', $driver->id)
-            ->where('vehicle_id', $vehicle->id)
+            ->where('vehicle_id', $vehicleId)
             ->whereDate('inspection_date', now()->toDateString())
             ->where('status', InspectionStatus::Submitted->value)
             ->exists();
+    }
+
+    /**
+     * Refuse to let a driver set off before today's inspection is signed.
+     *
+     * The trip's own vehicle is checked when it has one, since that is what
+     * the driver is about to drive; otherwise the driver's assigned vehicle.
+     *
+     * @throws RuntimeException
+     */
+    public function ensureClearedFor(User $driver, ?int $vehicleId = null): void
+    {
+        if (! config('readyroute.inspection.required_before_trip')) {
+            return;
+        }
+
+        if (! $this->isClearedToday($driver, $vehicleId)) {
+            throw new RuntimeException(
+                "Please complete and sign today's pre-trip inspection before starting this trip."
+            );
+        }
     }
 
     public function vehicleFor(User $driver): ?Vehicle

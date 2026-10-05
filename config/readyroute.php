@@ -122,4 +122,21 @@ return [
         'offline_after_minutes' => env('READYROUTE_OFFLINE_AFTER', 5),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Pre-Trip Inspection (DVIR)
+    |--------------------------------------------------------------------------
+    |
+    | One inspection per driver, per vehicle, per day. When required, a driver
+    | cannot set off on a trip until today's inspection for that vehicle is
+    | signed. The reminder goes out once a day, this many minutes before the
+    | driver's first pickup, to anyone who has not inspected yet.
+    |
+    */
+
+    'inspection' => [
+        'required_before_trip'    => env('READYROUTE_INSPECTION_REQUIRED', true),
+        'reminder_minutes_before' => env('READYROUTE_INSPECTION_REMINDER_MINUTES', 30),
+    ],
+
 ];

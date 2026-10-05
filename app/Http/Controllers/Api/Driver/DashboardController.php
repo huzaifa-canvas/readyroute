@@ -7,12 +7,15 @@ use App\Http\Resources\Driver\TripListResource;
 use App\Models\Message;
 use App\Models\Trip;
 use App\Services\Distance\DistanceProvider;
+use App\Services\InspectionService;
 use Illuminate\Http\JsonResponse;
 
 class DashboardController extends BaseDriverController
 {
-    public function __construct(private readonly DistanceProvider $distance)
-    {
+    public function __construct(
+        private readonly DistanceProvider $distance,
+        private readonly InspectionService $inspections,
+    ) {
     }
 
     /**
@@ -77,6 +80,11 @@ class DashboardController extends BaseDriverController
                 'unread_notifications' => $driver->unreadNotifications()->count(),
                 'unread_messages'      => Message::unreadFor($driver->id)->count(),
             ],
+
+            // Lets the home screen show an "inspection pending" banner before
+            // the driver ever taps Confirm Pickup and hits the 422.
+            'inspection_required'      => (bool) config('readyroute.inspection.required_before_trip'),
+            'inspection_cleared_today' => $this->inspections->isClearedToday($driver),
 
             'upcoming_trips' => $trips,
         ]);

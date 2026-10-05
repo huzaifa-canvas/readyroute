@@ -169,10 +169,12 @@
                     'trip_added'     => ['tabler-calendar-plus', 'primary'],
                     'route_change'   => ['tabler-route-2', 'warning'],
                     'trip_cancelled' => ['tabler-calendar-x', 'danger'],
+                    'inspection_defect' => ['tabler-tool', 'warning'],
                     default          => ['tabler-bell', 'secondary'],
                   })
               @php($target = match (true) {
                     ! empty($data['incident_id']) => route('dispatcher.incidents.show', $data['incident_id']),
+                    ! empty($data['inspection_id']) => route('dispatcher.driver.show', $data['driver_id']),
                     ! empty($data['trip_id'])     => route('dispatcher.trip.details', $data['trip_id']),
                     ! empty($data['driver_id'])   => route('dispatcher.messages.index', ['driver' => $data['driver_id']]),
                     default                       => route('dispatcher.notifications.index'),
@@ -351,7 +353,8 @@
           new_message: ['tabler-message-circle', 'info'],
           trip_added: ['tabler-calendar-plus', 'primary'],
           route_change: ['tabler-route-2', 'warning'],
-          trip_cancelled: ['tabler-calendar-x', 'danger']
+          trip_cancelled: ['tabler-calendar-x', 'danger'],
+          inspection_defect: ['tabler-tool', 'warning']
         })[n.kind] || ['tabler-bell', 'secondary'];
 
         var div = document.createElement('div');

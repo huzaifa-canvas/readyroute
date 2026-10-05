@@ -22,6 +22,10 @@ use RuntimeException;
  */
 class TripLifecycleService
 {
+    public function __construct(private readonly InspectionService $inspections)
+    {
+    }
+
     /**
      * Which timestamp column each status stamps when it is reached.
      */
@@ -63,6 +67,12 @@ class TripLifecycleService
 
         if (! in_array($to, TripStatus::driverSettable(), true)) {
             throw new RuntimeException('Drivers cannot set a trip to ' . $to->label() . '.');
+        }
+
+        // Setting off is the moment the vehicle goes on the road, so that is
+        // where an unsigned pre-trip inspection stops the driver.
+        if ($from === TripStatus::Scheduled) {
+            $this->inspections->ensureClearedFor($driver, $trip->vehicle_id);
         }
 
         $now = now();

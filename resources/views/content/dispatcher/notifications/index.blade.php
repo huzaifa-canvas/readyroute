@@ -18,6 +18,7 @@
       'route_change' => ['tabler-route-2',         'warning'],
       'trip_cancelled' => ['tabler-calendar-x',    'danger'],
       'reminder'     => ['tabler-bell-ringing',    'secondary'],
+      'inspection_defect' => ['tabler-tool',       'warning'],
     ];
   @endphp
 
@@ -102,6 +103,10 @@
               @if(! empty($data['incident_id']))
                 <a href="{{ route('dispatcher.incidents.show', $data['incident_id']) }}" class="btn btn-text-primary btn-sm p-0">
                   <i class="ti tabler-arrow-right icon-xs me-1"></i>Open incident
+                </a>
+              @elseif(! empty($data['inspection_id']))
+                <a href="{{ route('dispatcher.driver.show', $data['driver_id']) }}" class="btn btn-text-primary btn-sm p-0">
+                  <i class="ti tabler-arrow-right icon-xs me-1"></i>Open driver
                 </a>
               @elseif(! empty($data['trip_id']))
                 <a href="{{ route('dispatcher.trip.details', $data['trip_id']) }}" class="btn btn-text-primary btn-sm p-0">

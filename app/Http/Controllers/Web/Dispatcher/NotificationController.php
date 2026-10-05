@@ -26,6 +26,7 @@ class NotificationController extends Controller
         'trip_cancelled' => 'Cancellations',
         'route_change'   => 'Route changes',
         'reminder'       => 'Reminders',
+        'inspection_defect' => 'Inspection defects',
     ];
 
     public function index(Request $request)

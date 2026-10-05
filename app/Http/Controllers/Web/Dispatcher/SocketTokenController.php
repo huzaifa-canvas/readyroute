@@ -74,10 +74,13 @@ class SocketTokenController extends Controller
             $request->session()->put('panel_socket_token_id', $tokenId);
         }
 
+        // Never cached: this carries both a credential and the address the
+        // socket lives at, and a stale copy of either is a connection that
+        // fails for reasons nobody can see.
         return response()->json([
             'enabled' => true,
             'url'     => config('socket.public_url'),
             'token'   => $token,
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
     }
 }
