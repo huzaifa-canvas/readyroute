@@ -74,7 +74,9 @@ return [
     |
     */
 
-    'home' => '/admin',
+    // "/" sends each signed-in user to their own panel. A fixed "/admin" here
+    // sent a freshly registered dispatcher to the admin panel and a 403.
+    'home' => '/',
 
     /*
     |--------------------------------------------------------------------------
