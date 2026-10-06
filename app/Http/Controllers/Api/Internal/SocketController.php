@@ -64,11 +64,12 @@ class SocketController extends Controller
         $rooms = ['user.' . $user->id];
 
         if ($companyId) {
-            $rooms[] = 'dispatcher.' . $companyId;
-
-            if ($user->isDriver()) {
-                $rooms[] = 'thread.' . $companyId . '.' . $user->id;
-            }
+            // The company room is the office's: every driver's messages,
+            // incidents and inspections go through it. A driver only ever
+            // gets their own thread, never the whole company's traffic.
+            $rooms[] = $user->isDriver()
+                ? 'thread.' . $companyId . '.' . $user->id
+                : 'dispatcher.' . $companyId;
         }
 
         $accessToken->forceFill(['last_used_at' => now()])->save();

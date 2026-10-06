@@ -196,8 +196,10 @@ class MessageController extends Controller
         $forDriver     = $this->payload($message, viewerId: $driver->id);
         $forDispatcher = $this->payload($message, viewerId: auth()->id());
 
+        // The driver joins their thread room on every connection, so this one
+        // emit reaches them. Sending to their user room as well delivered
+        // each message twice.
         $this->socket->queue(SocketEmitter::threadRoom($companyId, $driver->id), 'message:new', $forDriver);
-        $this->socket->queue(SocketEmitter::userRoom($driver->id), 'message:new', $forDriver);
 
         // Everyone in the office, so a second dispatcher sees the reply too.
         $this->socket->queue(SocketEmitter::dispatcherRoom($companyId), 'message:new', $forDispatcher);
