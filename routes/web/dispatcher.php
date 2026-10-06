@@ -134,6 +134,7 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     Route::get('messages', [App\Http\Controllers\Web\Dispatcher\MessageController::class, 'index'])->middleware('plan:messaging')->middleware('permission:messages.view')->name('dispatcher.messages.index');
     Route::get('messages/{driverId}', [App\Http\Controllers\Web\Dispatcher\MessageController::class, 'thread'])->whereNumber('driverId')->middleware('plan:messaging')->middleware('permission:messages.view')->name('dispatcher.messages.thread');
     Route::post('messages/{driverId}', [App\Http\Controllers\Web\Dispatcher\MessageController::class, 'store'])->whereNumber('driverId')->middleware('plan:messaging')->middleware('permission:messages.send')->name('dispatcher.messages.store');
+    Route::get('messages/{driverId}/older', [App\Http\Controllers\Web\Dispatcher\MessageController::class, 'older'])->whereNumber('driverId')->middleware('plan:messaging')->middleware('permission:messages.view')->name('dispatcher.messages.older');
     Route::get('messages/{driverId}/poll', [App\Http\Controllers\Web\Dispatcher\MessageController::class, 'poll'])->whereNumber('driverId')->middleware('plan:messaging')->middleware('permission:messages.view')->name('dispatcher.messages.poll');
 
     Route::get('settings', [App\Http\Controllers\Web\Dispatcher\SettingsController::class, 'index'])->middleware('permission:settings.manage')->name('dispatcher.settings');

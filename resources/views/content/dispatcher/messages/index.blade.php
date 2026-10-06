@@ -205,26 +205,20 @@
             </div>
 
             <div class="chat-history-body">
+              {{-- Only the newest page is drawn; older ones load when the
+                   dispatcher scrolls to the top, or clicks this. --}}
+              <div class="text-center mb-4 {{ $hasOlder ? '' : 'd-none' }}" id="load-older">
+                <button type="button" class="btn btn-sm btn-label-secondary rounded-pill">
+                  <span class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+                  Load older messages
+                </button>
+              </div>
+
               <ul class="list-unstyled chat-history">
-                @php($lastDate = null)
-
-                @foreach($messages as $message)
-                  @if($message->created_at->toDateString() !== $lastDate)
-                    <li class="chat-date-divider text-center">
-                      <span class="badge bg-label-secondary">
-                        {{ $message->created_at->isToday() ? 'Today'
-                           : ($message->created_at->isYesterday() ? 'Yesterday'
-                           : $message->created_at->format('d M Y')) }}
-                      </span>
-                    </li>
-                    @php($lastDate = $message->created_at->toDateString())
-                  @endif
-
-                  @include('content.dispatcher.messages._bubble', [
-                    'message' => $message,
-                    'driver'  => $activeDriver,
-                  ])
-                @endforeach
+                @include('content.dispatcher.messages._history', [
+                  'messages' => $messages,
+                  'driver'   => $activeDriver,
+                ])
               </ul>
 
               @if($messages->isEmpty())
@@ -250,7 +244,7 @@
                   </button>
                 </div>
               </form>
-              @error('body') <small class="text-danger d-block mt-1">{{ $message }}</small> @enderror
+              <small class="text-danger d-block mt-1 {{ $errors->has('body') ? '' : 'd-none' }}" id="send-error">{{ $errors->first('body') }}</small>
             </div>
           </div>
         @endif
@@ -359,10 +353,8 @@
         const fresh = (json.data || []).filter(m => !document.getElementById('msg-' + m.id));
         if (fresh.length === 0) return;
 
-        document.getElementById('emptyState')?.remove();
-        const list = document.querySelector('.chat-history');
         fresh.forEach(function (m) {
-          list.appendChild(bubble(m));
+          appendMessage(m);
           since = m.created_at;
         });
         toBottom();
@@ -370,6 +362,135 @@
         // A failed poll is not worth surfacing; the next one catches up.
       }
     }
+
+    const list  = document.querySelector('.chat-history');
+    const today = @json(now()->toDateString());
+
+    /*
+     * The one way a message reaches the bottom of the thread, whether it came
+     * from the poll, the socket or our own send. It skips anything already on
+     * the page, and opens a new day divider when the date changes.
+     */
+    function appendMessage(m) {
+      if (document.getElementById('msg-' + m.id)) return;
+
+      document.getElementById('emptyState')?.remove();
+
+      const date     = (m.created_at || '').slice(0, 10);
+      const dividers = list.querySelectorAll('.chat-date-divider');
+      const lastDay  = dividers.length ? dividers[dividers.length - 1].dataset.date : null;
+
+      if (date && date !== lastDay) {
+        const divider = document.createElement('li');
+        divider.className = 'chat-date-divider text-center';
+        divider.dataset.date = date;
+        divider.innerHTML = '<span class="badge bg-label-secondary"></span>';
+        divider.firstChild.textContent = date === today ? 'Today' : date;
+        list.appendChild(divider);
+      }
+
+      list.appendChild(bubble(m));
+    }
+
+    // ── Sending ────────────────────────────────────────
+    // The form still posts normally without JavaScript; with it, the message
+    // goes over fetch so the page (and its scroll position) stays put.
+    const form      = document.querySelector('.form-send-message');
+    const input     = document.getElementById('message-input');
+    const sendBtn   = form.querySelector('.send-msg-btn');
+    const sendError = document.getElementById('send-error');
+
+    function showSendError(text) {
+      sendError.textContent = text || '';
+      sendError.classList.toggle('d-none', !text);
+    }
+
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+
+      if (!input.value.trim() || sendBtn.disabled) return;
+
+      sendBtn.disabled = true;
+      showSendError('');
+
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: new FormData(form),
+        });
+        const json = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          showSendError(json.errors?.body?.[0] || json.message || 'Message could not be sent. Please try again.');
+          return;
+        }
+
+        input.value = '';
+        appendMessage(json.data);
+        toBottom();
+      } catch (error) {
+        showSendError('Message could not be sent. Check your connection and try again.');
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    });
+
+    // ── Older messages ─────────────────────────────────
+    const olderUrl  = @json(route('dispatcher.messages.older', $activeDriver->id));
+    const olderBox  = document.getElementById('load-older');
+    const olderBtn  = olderBox.querySelector('button');
+    let oldestId    = @json($messages->first()?->id);
+    let hasOlder    = @json($hasOlder);
+    let loadingOlder = false;
+
+    async function loadOlder() {
+      if (!hasOlder || loadingOlder || !oldestId) return;
+
+      loadingOlder = true;
+      olderBtn.disabled = true;
+      olderBtn.querySelector('.spinner-border').classList.remove('d-none');
+
+      try {
+        const response = await fetch(olderUrl + '?before=' + oldestId, { headers: { 'Accept': 'application/json' } });
+        if (!response.ok) return;
+
+        const json = await response.json();
+        const page = document.createElement('template');
+        page.innerHTML = json.html.trim();
+
+        // Two pages that meet inside one day would each open it with a divider.
+        const firstDivider = list.firstElementChild;
+        const newDividers  = page.content.querySelectorAll('.chat-date-divider');
+        const lastNewDay   = newDividers.length ? newDividers[newDividers.length - 1].dataset.date : null;
+        if (firstDivider?.classList.contains('chat-date-divider') && firstDivider.dataset.date === lastNewDay) {
+          firstDivider.remove();
+        }
+
+        // Keep the message the dispatcher was reading where it was, rather
+        // than letting the new rows push it down.
+        const fromBottom = body.scrollHeight - body.scrollTop;
+        list.prepend(page.content);
+        body.scrollTop = body.scrollHeight - fromBottom;
+        if (scroller) scroller.update();
+
+        oldestId = json.oldest_id ?? oldestId;
+        hasOlder = json.has_more;
+        olderBox.classList.toggle('d-none', !hasOlder);
+      } catch (error) {
+        // Left as it was; scrolling up again or the button retries.
+      } finally {
+        loadingOlder = false;
+        olderBtn.disabled = false;
+        olderBtn.querySelector('.spinner-border').classList.add('d-none');
+      }
+    }
+
+    olderBtn.addEventListener('click', loadOlder);
+    body.addEventListener('scroll', function () {
+      if (body.scrollTop < 80) loadOlder();
+    });
 
     /*
      * Polling is the floor, not the mechanism. The socket simply calls poll()

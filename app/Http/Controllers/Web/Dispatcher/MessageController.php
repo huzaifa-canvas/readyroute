@@ -21,6 +21,12 @@ use Illuminate\Support\Carbon;
  */
 class MessageController extends Controller
 {
+    /**
+     * Messages per page. The open thread starts with the newest page and
+     * earlier ones are fetched as the dispatcher scrolls up.
+     */
+    private const PAGE_SIZE = 30;
+
     public function __construct(private readonly SocketEmitter $socket)
     {
     }
@@ -70,12 +76,10 @@ class MessageController extends Controller
             : null;
 
         $messages = collect();
+        $hasOlder = false;
 
         if ($activeDriver) {
-            $messages = Message::thread($companyId, $activeDriver->id)
-                ->with('sender')
-                ->orderBy('created_at')
-                ->get();
+            [$messages, $hasOlder] = $this->page($companyId, $activeDriver);
 
             $this->markThreadRead($companyId, $activeDriver);
 
@@ -93,8 +97,59 @@ class MessageController extends Controller
         $totalUnread = $conversations->sum('unread');
 
         return view('content.dispatcher.messages.index', compact(
-            'conversations', 'activeDriver', 'messages', 'totalUnread'
+            'conversations', 'activeDriver', 'messages', 'totalUnread', 'hasOlder'
         ));
+    }
+
+    /**
+     * The page of messages before a given id, rendered with the same partials
+     * as the first load so the browser only has to prepend it.
+     */
+    public function older(Request $request, $driverId): JsonResponse
+    {
+        $request->validate([
+            'before' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $driver = $this->findDriver($driverId);
+
+        [$messages, $hasOlder] = $this->page(
+            auth()->user()->companyId(),
+            $driver,
+            (int) $request->input('before')
+        );
+
+        return response()->json([
+            'status'    => true,
+            'html'      => view('content.dispatcher.messages._history', [
+                'messages' => $messages,
+                'driver'   => $driver,
+            ])->render(),
+            'oldest_id' => $messages->first()?->id,
+            'has_more'  => $hasOlder,
+        ]);
+    }
+
+    /**
+     * One page of a thread, oldest first, ending just before $beforeId (or at
+     * the newest message). Paged by id rather than created_at, since two
+     * messages can share a second but never an id.
+     *
+     * @return array{0: \Illuminate\Support\Collection<int, Message>, 1: bool}
+     */
+    private function page(int $companyId, User $driver, ?int $beforeId = null): array
+    {
+        $rows = Message::thread($companyId, $driver->id)
+            ->with('sender')
+            ->when($beforeId, fn ($query) => $query->where('id', '<', $beforeId))
+            ->orderByDesc('id')
+            ->limit(self::PAGE_SIZE + 1)
+            ->get();
+
+        // The extra row only says whether another page exists.
+        $hasOlder = $rows->count() > self::PAGE_SIZE;
+
+        return [$rows->take(self::PAGE_SIZE)->reverse()->values(), $hasOlder];
     }
 
     /**
@@ -214,6 +269,7 @@ class MessageController extends Controller
                 'is_mine'    => $message->sender_id !== $driver->id,
                 'sender'     => ['id' => $message->sender_id, 'name' => $message->sender?->name],
                 'created_at' => $message->created_at->toIso8601String(),
+                'time'       => $message->created_at->format('g:i A'),
                 'read_at'    => $message->read_at?->toIso8601String(),
             ])->values(),
             'server_time' => now()->toIso8601String(),
