@@ -23,6 +23,13 @@ export const config = {
     .map((origin) => origin.trim())
     .filter(Boolean),
   logLevel: process.env.LOG_LEVEL || 'info',
+
+  // TLS, for serving https/wss directly when there is no reverse proxy in
+  // front (e.g. cPanel). Both may point at the same file: cPanel's "combined"
+  // PEM holds the key, certificate and chain together. Left empty, the server
+  // runs plain http as before.
+  sslKeyPath: process.env.SSL_KEY_PATH || '',
+  sslCertPath: process.env.SSL_CERT_PATH || '',
 }
 
 export function log(level, message, context = {}) {

@@ -1,5 +1,7 @@
 import express from 'express'
-import { createServer } from 'node:http'
+import { readFileSync } from 'node:fs'
+import { createServer as createHttpServer } from 'node:http'
+import { createServer as createHttpsServer } from 'node:https'
 import { Server } from 'socket.io'
 
 import { config, log } from './src/config.js'
@@ -9,7 +11,33 @@ import { onlineUserIds, registerConnectionHandlers } from './src/handlers/connec
 const app = express()
 app.use(express.json({ limit: '256kb' }))
 
-const httpServer = createServer(app)
+const useTls = Boolean(config.sslKeyPath && config.sslCertPath)
+
+function readTls() {
+  return {
+    key: readFileSync(config.sslKeyPath),
+    cert: readFileSync(config.sslCertPath),
+  }
+}
+
+const httpServer = useTls ? createHttpsServer(readTls(), app) : createHttpServer(app)
+
+/*
+ * Certificates renew in place (cPanel AutoSSL every few months), so the files
+ * are re-read daily and swapped into the running server. Without this the
+ * process would keep serving the old certificate until someone restarted it,
+ * and every client would start failing the day it expired.
+ */
+if (useTls) {
+  setInterval(() => {
+    try {
+      httpServer.setSecureContext(readTls())
+      log('info', 'TLS certificate reloaded')
+    } catch (error) {
+      log('error', 'TLS certificate reload failed', { error: error.message })
+    }
+  }, 24 * 60 * 60 * 1000).unref()
+}
 
 const io = new Server(httpServer, {
   cors: {
@@ -88,7 +116,11 @@ app.get('/health', (req, res) => {
 })
 
 httpServer.listen(config.port, () => {
-  log('info', 'Socket server listening', { port: config.port, laravel: config.laravelUrl })
+  log('info', 'Socket server listening', {
+    port: config.port,
+    scheme: useTls ? 'https' : 'http',
+    laravel: config.laravelUrl,
+  })
 })
 
 // Let PM2 and the dev runner stop the process cleanly.
