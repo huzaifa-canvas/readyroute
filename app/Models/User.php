@@ -130,6 +130,19 @@ class User extends Authenticatable
     }
 
     /**
+     * Where this user's web panel starts. Null for roles with no panel —
+     * drivers use the mobile app only.
+     */
+    public function panelHome(): ?string
+    {
+        return match (true) {
+            $this->isAdmin()      => '/admin',
+            $this->isDispatcher() => '/dispatcher',
+            default               => null,
+        };
+    }
+
+    /**
      * Account status
      *
      * role says what kind of account this is; status says whether it may be

@@ -6,9 +6,32 @@ use Illuminate\Support\Facades\Route;
 // SHARED / AUTH ROUTES
 // ═══════════════════════════════════════════════════
 
+// A signed-in user goes to their own panel. Sending everyone to /login made
+// an endless loop, since /login sends a signed-in user back here.
 Route::get('/', function () {
+    $user = auth()->user();
+
+    if ($user && ($home = $user->panelHome())) {
+        return redirect($home);
+    }
+
+    // A driver has no web panel, so a stray web session is ended rather than
+    // bounced between here and the login page.
+    if ($user) {
+        auth()->logout();
+        request()->session()->invalidate();
+        request()->session()->regenerateToken();
+    }
+
     return redirect('/login');
 });
+
+// A fresh CSRF token for a form that has been open a long time, so a login page
+// left overnight still submits instead of failing with 419.
+Route::get('csrf-token', function () {
+    return response()->json(['token' => csrf_token()])
+        ->header('Cache-Control', 'no-store');
+})->middleware('throttle:30,1')->name('csrf.token');
 
 // ═══════════════════════════════════════════════════
 // ROLE-BASED WEB ROUTES (loaded from separate files)

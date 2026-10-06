@@ -26,6 +26,11 @@
   $semiDarkEnabled = $isAdminLayout && filter_var($configData['semiDark'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
   // Generate primary color CSS if color is set
+  // Sign-in screens are designed on a fixed white canvas, so the panel's saved
+  // dark mode and background choice must not reach them.
+  $forceLightTheme = ($forceLightTheme ?? false) === true;
+  $htmlTheme = $forceLightTheme ? 'light' : $configData['theme'];
+
   $primaryColorCSS = '';
   if (isset($configData['color']) && $configData['color']) {
       $primaryColorCSS = Helpers::generatePrimaryColorCSS($configData['color']);
@@ -37,7 +42,7 @@
   class="{{ $navbarType ?? '' }} {{ $contentLayout ?? '' }} {{ $menuFixed ?? '' }} {{ $menuCollapsed ?? '' }} {{ $footerFixed ?? '' }} {{ $customizerHidden ?? '' }}"
   dir="{{ $configData['textDirection'] }}" data-skin="{{ $skinName }}" data-assets-path="{{ asset('/assets') . '/' }}"
   data-base-url="{{ url('/') }}" data-framework="laravel" data-template="{{ $configData['layout'] }}-menu-template"
-  data-bs-theme="{{ $configData['theme'] }}" @if ($isAdminLayout && $semiDarkEnabled) data-semidark-menu="true" @endif>
+  data-bs-theme="{{ $htmlTheme }}" @if ($isAdminLayout && $semiDarkEnabled) data-semidark-menu="true" @endif>
 
 <head>
   <meta charset="utf-8" />
@@ -89,7 +94,23 @@
 
   {{-- Applies the saved background before the first paint, so a chosen
        surface never flashes the default first. --}}
-  @include('_partials._surface-theme')
+  @if ($forceLightTheme)
+    {{-- The template's scripts re-apply the saved mode after load, so the
+         attribute is held at light rather than only set once. The saved
+         preference itself is left alone for when the user is back in. --}}
+    <script>
+      (function () {
+        const html = document.documentElement;
+        new MutationObserver(function () {
+          if (html.getAttribute('data-bs-theme') !== 'light') {
+            html.setAttribute('data-bs-theme', 'light');
+          }
+        }).observe(html, { attributes: true, attributeFilter: ['data-bs-theme'] });
+      })();
+    </script>
+  @else
+    @include('_partials._surface-theme')
+  @endif
 </head>
 
 <body>

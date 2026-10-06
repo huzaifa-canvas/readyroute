@@ -27,11 +27,8 @@ class FortifyServiceProvider extends ServiceProvider
                 public function toResponse($request)
                 {
                     $user = auth()->user();
-                    if ($user->isAdmin()) {
-                        return redirect()->intended('/admin');
-                    }
-                    if ($user->isDispatcher()) {
-                        return redirect()->intended('/dispatcher');
+                    if ($home = $user->panelHome()) {
+                        return redirect()->intended($home);
                     }
                     // Drivers cannot login to web panel
                     auth()->logout();

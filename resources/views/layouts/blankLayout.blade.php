@@ -15,4 +15,6 @@
   <!-- Content -->
   @yield('content')
   <!--/ Content -->
+
+  @include('_partials._csrf-refresh')
 @endsection

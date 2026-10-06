@@ -43,6 +43,11 @@ return Application::configure(basePath: dirname(__DIR__))
             }
             return route('login');
         });
+
+        // Where the guest middleware sends someone already signed in, e.g.
+        // opening /login again. Laravel's default is "/", which only works
+        // because "/" knows each role's panel.
+        $middleware->redirectUsersTo(fn (Request $request) => $request->user()?->panelHome() ?? '/');
     })
     ->withExceptions(function (Exceptions $exceptions) {
         /*
@@ -91,6 +96,28 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($wantsApi($request)) {
                 return $envelope('Resource not found.', 404);
             }
+        });
+
+        /*
+         * An expired CSRF token on a web form — typically a login page left
+         * open past the session lifetime. A bare "419 Page Expired" leaves the
+         * user stranded, so they go back to the form instead, with what they
+         * typed (never the password) and a plain explanation. A stale logout
+         * form just lands on the login page: the session it meant to end has
+         * already ended.
+         */
+        $exceptions->render(function (HttpExceptionInterface $e, Request $request) use ($wantsApi) {
+            if ($e->getStatusCode() !== 419 || $wantsApi($request)) {
+                return null;
+            }
+
+            if ($request->routeIs('logout')) {
+                return redirect()->route('login');
+            }
+
+            return redirect()->back(fallback: route('login'))
+                ->withInput($request->except(['password', 'password_confirmation', 'current_password', '_token']))
+                ->withErrors(['session' => 'Your session expired while the page was open. Please try again.']);
         });
 
         // Anything else that carries an HTTP status — rate limiting, method not

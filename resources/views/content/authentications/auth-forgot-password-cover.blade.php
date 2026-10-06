@@ -1,5 +1,6 @@
 @php
 $customizerHidden = 'customizer-hide';
+$forceLightTheme = true;
 @endphp
 
 @extends('layouts/blankLayout')
