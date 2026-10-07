@@ -61,6 +61,14 @@ if ($user && $user->isAdmin()) {
                     'slug' => ['dispatcher.trip.list', 'dispatcher.trip.details', 'dispatcher.trip.edit']
                 ],
                 (object)[
+                    'url' => 'dispatcher/trip/driver-load',
+                    'feature' => 'trips',
+                    'permission' => 'trips.view',
+                    'name' => 'Driver Trips',
+                    'icon' => 'menu-icon icon-base ti tabler-steering-wheel',
+                    'slug' => 'dispatcher.trip.driver-load'
+                ],
+                (object)[
                     'url' => 'dispatcher/trip/calendar',
                     'feature' => 'trips',
                     'permission' => 'trips.view',

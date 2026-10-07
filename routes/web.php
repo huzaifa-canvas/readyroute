@@ -33,6 +33,17 @@ Route::get('csrf-token', function () {
         ->header('Cache-Control', 'no-store');
 })->middleware('throttle:30,1')->name('csrf.token');
 
+// Vuexy's template customizer sends the Direction switch and its reset button
+// here. LocaleMiddleware applies the stored locale; the direction itself comes
+// from the customizer's cookie, so this only has to remember the language.
+Route::get('lang/{locale}', function (string $locale) {
+    if (in_array($locale, ['en', 'fr', 'ar', 'de'], true)) {
+        session()->put('locale', $locale);
+    }
+
+    return redirect()->back();
+})->name('lang.switch');
+
 // ═══════════════════════════════════════════════════
 // ROLE-BASED WEB ROUTES (loaded from separate files)
 // ═══════════════════════════════════════════════════

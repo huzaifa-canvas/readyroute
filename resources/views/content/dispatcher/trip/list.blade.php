@@ -21,10 +21,25 @@
 {{-- Search & Filters --}}
 <div class="card mb-5">
   <div class="card-body">
+    @php
+      $todayDate = today()->toDateString();
+      $isToday = request('date_from') === $todayDate && request('date_to') === $todayDate;
+      $hasFilters = collect(request()->only(['search', 'status', 'date_from', 'date_to', 'driver_id']))->filter()->isNotEmpty();
+    @endphp
     <form action="{{ route('dispatcher.trip.list') }}" method="GET" class="row g-3">
-      <div class="col-md-5">
+      <div class="col-md-4">
         <label class="form-label" for="search">Search</label>
         <input type="text" id="search" name="search" class="form-control" placeholder="Search passenger, address..." value="{{ request('search') }}" />
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="driver_id">Driver</label>
+        <select id="driver_id" name="driver_id" class="form-select">
+          <option value="">All Drivers</option>
+          <option value="unassigned" {{ request('driver_id') === 'unassigned' ? 'selected' : '' }}>Unassigned</option>
+          @foreach($drivers as $driver)
+            <option value="{{ $driver->id }}" {{ (string) request('driver_id') === (string) $driver->id ? 'selected' : '' }}>{{ $driver->name }}</option>
+          @endforeach
+        </select>
       </div>
       <div class="col-md-4">
         <label class="form-label" for="status">Status</label>
@@ -36,9 +51,29 @@
           <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
         </select>
       </div>
-      <div class="col-md-3 d-flex align-items-end">
-        <button type="submit" class="btn btn-label-primary w-100 me-2">Filter</button>
-        @if(request('search') || request('status'))
+      <div class="col-md-3">
+        <label class="form-label" for="date_from">From Date</label>
+        <input type="date" id="date_from" name="date_from" class="form-control" value="{{ request('date_from') }}" />
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="date_to">To Date</label>
+        <input type="date" id="date_to" name="date_to" class="form-control" value="{{ request('date_to') }}" />
+      </div>
+      <div class="col-md-6 d-flex flex-wrap align-items-end gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="ti tabler-filter me-1"></i> Filter
+        </button>
+        {{-- Keeps the other filters and swaps the dates for today's. --}}
+        <a href="{{ route('dispatcher.trip.list', array_merge(request()->except(['date_from', 'date_to', 'page']), ['date_from' => $todayDate, 'date_to' => $todayDate])) }}"
+           class="btn {{ $isToday ? 'btn-info' : 'btn-label-info' }}">
+          <i class="ti tabler-calendar-event me-1"></i> Today's Trips
+        </a>
+        {{-- Same idea for trips still waiting on a driver. --}}
+        <a href="{{ route('dispatcher.trip.list', array_merge(request()->except(['driver_id', 'page']), ['driver_id' => 'unassigned'])) }}"
+           class="btn {{ request('driver_id') === 'unassigned' ? 'btn-warning' : 'btn-label-warning' }}">
+          <i class="ti tabler-user-question me-1"></i> Unassigned Trips
+        </a>
+        @if($hasFilters)
           <a href="{{ route('dispatcher.trip.list') }}" class="btn btn-label-secondary">Clear</a>
         @endif
       </div>
@@ -70,7 +105,7 @@
           </td>
           <td>
             <div><i class="ti tabler-calendar icon-xs me-1"></i>{{ $trip->pickup_date ? $trip->pickup_date->format('M d, Y') : '-' }}</div>
-            <small class="text-muted"><i class="ti tabler-clock icon-xs me-1"></i>{{ $trip->pickup_time }}</small>
+            <small class="text-muted"><i class="ti tabler-clock icon-xs me-1"></i>{{ \Carbon\Carbon::parse($trip->pickup_time)->format('h:i A') }}</small>
           </td>
           <td>
             <div class="text-truncate" style="max-width: 200px;" title="{{ $trip->pickup_address }}"><span class="badge bg-label-success p-1 me-1">From</span> {{ $trip->pickup_address }}</div>
@@ -129,11 +164,17 @@
         </tr>
         @empty
         <tr>
-          <td colspan="6" class="text-center py-5">
+          <td colspan="7" class="text-center py-5">
             <i class="ti tabler-route text-muted mb-3" style="font-size: 3rem;"></i>
-            <h5>No trips scheduled yet</h5>
-            <p class="text-muted mb-3">Create your first trip to get started.</p>
-            <a href="{{ route('dispatcher.trip.create') }}" class="btn btn-primary">Create New Trip</a>
+            @if($hasFilters)
+              <h5>No trips match these filters</h5>
+              <p class="text-muted mb-3">Try a different date range or driver.</p>
+              <a href="{{ route('dispatcher.trip.list') }}" class="btn btn-label-secondary">Clear Filters</a>
+            @else
+              <h5>No trips scheduled yet</h5>
+              <p class="text-muted mb-3">Create your first trip to get started.</p>
+              <a href="{{ route('dispatcher.trip.create') }}" class="btn btn-primary">Create New Trip</a>
+            @endif
           </td>
         </tr>
         @endforelse

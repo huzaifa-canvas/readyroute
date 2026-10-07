@@ -7,9 +7,12 @@ use App\Models\DriverDocument;
 use App\Models\Trip;
 use App\Models\TripIncident;
 use App\Models\User;
+use App\Models\Vehicle;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class DriverController extends Controller
 {
@@ -20,7 +23,9 @@ class DriverController extends Controller
         // Get drivers owned ONLY by this logged-in dispatcher
         $drivers = User::where('role', 'driver')
             ->where('dispatcher_id', $dispatcher->companyId())
-            ->with('metas')
+            // Eager loaded, or the list would run a query per driver for a
+            // column that is on every row.
+            ->with(['metas', 'assignedVehicle'])
             ->latest()
             ->paginate(15);
 
@@ -93,7 +98,69 @@ class DriverController extends Controller
 
     public function create()
     {
-        return view('content.dispatcher.drivers.create');
+        return view('content.dispatcher.drivers.create', [
+            'vehicles' => $this->assignableVehicles(),
+        ]);
+    }
+
+    /**
+     * Vehicles this company can put a driver in.
+     *
+     * A vehicle carries one driver, so anything already taken is left out —
+     * except the one the driver being edited already has, which must stay in
+     * the list or saving the form would look like it was unassigning them.
+     */
+    private function assignableVehicles(?int $keepForDriverId = null)
+    {
+        return Vehicle::where('dispatcher_id', auth()->user()->companyId())
+            ->where(function ($query) use ($keepForDriverId) {
+                $query->whereNull('assigned_driver_id');
+
+                if ($keepForDriverId) {
+                    $query->orWhere('assigned_driver_id', $keepForDriverId);
+                }
+            })
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * Hand a vehicle to a driver, taking it off whoever had it.
+     *
+     * Done in one transaction: a half-finished swap would leave either two
+     * drivers holding one vehicle or a driver holding none.
+     */
+    private function assignVehicle(User $driver, int $vehicleId): void
+    {
+        DB::transaction(function () use ($driver, $vehicleId) {
+            Vehicle::where('assigned_driver_id', $driver->id)
+                ->where('id', '!=', $vehicleId)
+                ->update(['assigned_driver_id' => null]);
+
+            Vehicle::where('id', $vehicleId)
+                ->where('dispatcher_id', auth()->user()->companyId())
+                ->update(['assigned_driver_id' => $driver->id]);
+        });
+    }
+
+    /**
+     * The rule a vehicle choice has to pass: it must belong to this company
+     * and must not already be someone else's.
+     */
+    private function vehicleRules(?int $forDriverId = null): array
+    {
+        return [
+            'required',
+            Rule::exists('vehicles', 'id')
+                ->where('dispatcher_id', auth()->user()->companyId())
+                ->where(function ($query) use ($forDriverId) {
+                    $query->whereNull('assigned_driver_id');
+
+                    if ($forDriverId) {
+                        $query->orWhere('assigned_driver_id', $forDriverId);
+                    }
+                }),
+        ];
     }
 
     public function store(Request $request)
@@ -109,6 +176,12 @@ class DriverController extends Controller
             'license_expiry_date' => 'nullable|date',
             'cdl_class' => 'nullable|string|max:100',
             'internal_notes' => 'nullable|string',
+            // A driver without a vehicle cannot run a trip or open a pre-trip
+            // inspection, so one is picked here rather than later.
+            'vehicle_id' => $this->vehicleRules(),
+        ], [
+            'vehicle_id.required' => 'Choose the vehicle this driver will run.',
+            'vehicle_id.exists'   => 'That vehicle is not available — it belongs to another driver.',
         ]);
 
         $profileImagePath = null;
@@ -140,7 +213,10 @@ class DriverController extends Controller
             'internal_notes' => $request->internal_notes,
         ]);
 
-        return redirect()->route('dispatcher.driver.list')->with('success', 'Driver added successfully.');
+        $this->assignVehicle($driver, (int) $request->vehicle_id);
+
+        return redirect()->route('dispatcher.driver.list')
+            ->with('success', 'Driver added and assigned ' . $driver->fresh()->assignedVehicle?->name . '.');
     }
 
     public function edit($id)
@@ -151,7 +227,10 @@ class DriverController extends Controller
             ->with('metas')
             ->findOrFail($id);
 
-        return view('content.dispatcher.drivers.edit', compact('driver'));
+        return view('content.dispatcher.drivers.edit', [
+            'driver'   => $driver,
+            'vehicles' => $this->assignableVehicles($driver->id),
+        ]);
     }
 
     public function update(Request $request, $id)
@@ -171,6 +250,10 @@ class DriverController extends Controller
             'license_expiry_date' => 'nullable|date',
             'cdl_class' => 'nullable|string|max:100',
             'internal_notes' => 'nullable|string',
+            'vehicle_id' => $this->vehicleRules($driver->id),
+        ], [
+            'vehicle_id.required' => 'Choose the vehicle this driver will run.',
+            'vehicle_id.exists'   => 'That vehicle is not available - it belongs to another driver.',
         ]);
 
         $data = [
@@ -205,6 +288,8 @@ class DriverController extends Controller
             'internal_notes' => $request->internal_notes,
         ]);
 
+        $this->assignVehicle($driver, (int) $request->vehicle_id);
+
         return redirect()->route('dispatcher.driver.list')->with('success', 'Driver updated successfully.');
     }
 
@@ -218,6 +303,10 @@ class DriverController extends Controller
         if ($driver->profile_image) {
             Storage::disk('public')->delete($driver->profile_image);
         }
+
+        // Put the vehicle back in the pool, or it stays held by a driver who
+        // is gone and can never be given to anyone else.
+        Vehicle::where('assigned_driver_id', $driver->id)->update(['assigned_driver_id' => null]);
 
         $driver->delete();
 

@@ -100,6 +100,42 @@
         </div>
       </div>
 
+
+      {{-- Vehicle.
+           Required: a driver with no vehicle cannot run a trip or open a
+           pre-trip inspection, and the trip form now takes the vehicle from
+           whoever is driving rather than asking again. --}}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="card-title mb-0 fw-semibold">
+            <i class="ti tabler-car me-2 text-primary"></i>Assigned Vehicle
+          </h5>
+        </div>
+        <div class="card-body">
+          @if($vehicles->isEmpty())
+            <div class="alert alert-warning mb-0">
+              <i class="ti tabler-alert-triangle me-1"></i>
+              Every vehicle is already assigned to a driver. Add a vehicle before
+              adding this driver &mdash;
+              <a href="{{ route('dispatcher.fleet.create') }}" class="alert-link">add a vehicle</a>.
+            </div>
+          @else
+            <label class="form-label" for="vehicle_id">Vehicle <span class="text-danger">*</span></label>
+            <select id="vehicle_id" name="vehicle_id"
+                    class="form-select @error('vehicle_id') is-invalid @enderror" required>
+              <option value="">-- Select a vehicle --</option>
+              @foreach($vehicles as $vehicle)
+                <option value="{{ $vehicle->id }}" {{ old('vehicle_id', $driver->assignedVehicle?->id) == $vehicle->id ? 'selected' : '' }}>
+                  {{ $vehicle->name }}@if($vehicle->number_plate) &mdash; {{ $vehicle->number_plate }}@endif
+                </option>
+              @endforeach
+            </select>
+            @error('vehicle_id') <div class="invalid-feedback">{{ $message }}</div> @enderror
+            <small class="text-muted">One vehicle per driver. Only vehicles nobody else is using are listed.</small>
+          @endif
+        </div>
+      </div>
+
       {{-- Availability --}}
       <div class="card mb-4">
         <div class="card-header">

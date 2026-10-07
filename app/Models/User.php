@@ -617,6 +617,91 @@ class User extends Authenticatable
     /**
      * Meta Helpers
      */
+    /**
+     * Which days this driver works, read from their availability toggles.
+     *
+     * @return array{mon_fri:bool, sat:bool, sun:bool, on_call:bool}
+     */
+    public function availability(): array
+    {
+        return [
+            'mon_fri' => (bool) $this->getMeta('availability_mon_fri'),
+            'sat'     => (bool) $this->getMeta('availability_sat'),
+            'sun'     => (bool) $this->getMeta('availability_sun'),
+            'on_call' => (bool) $this->getMeta('availability_on_call'),
+        ];
+    }
+
+    /**
+     * Whether this driver works on a given date.
+     *
+     * On-call is deliberately not counted here. It means they can be reached
+     * in an emergency, not that they are on the roster that day — treating it
+     * as general availability would make every driver available every day,
+     * since on-call tends to be left switched on.
+     *
+     * A date we cannot read is treated as available: the dispatcher has not
+     * chosen a day yet, so there is nothing to rule anyone out on.
+     */
+    public function isAvailableOn(?\Illuminate\Support\Carbon $date): bool
+    {
+        if (! $date) {
+            return true;
+        }
+
+        $availability = $this->availability();
+
+        return match (true) {
+            $date->isSaturday() => $availability['sat'],
+            $date->isSunday()   => $availability['sun'],
+            default             => $availability['mon_fri'],
+        };
+    }
+
+    /**
+     * Just the working days, short enough to sit inside a dropdown option.
+     *
+     * On-call is left out here: it does not change which days the driver can
+     * be given a trip on, and in a list of options the extra words cost more
+     * than they explain.
+     */
+    public function availabilityShort(): string
+    {
+        $availability = $this->availability();
+
+        $days = array_keys(array_filter([
+            'Mon-Fri' => $availability['mon_fri'],
+            'Sat'     => $availability['sat'],
+            'Sun'     => $availability['sun'],
+        ]));
+
+        if (empty($days)) {
+            return $availability['on_call'] ? 'on-call' : 'no days';
+        }
+
+        return implode(', ', $days);
+    }
+
+    /**
+     * The working days as something a person can read, e.g. "Mon-Fri, Sat".
+     */
+    public function availabilityLabel(): string
+    {
+        $availability = $this->availability();
+
+        $days = array_keys(array_filter([
+            'Mon-Fri' => $availability['mon_fri'],
+            'Sat'     => $availability['sat'],
+            'Sun'     => $availability['sun'],
+        ]));
+
+        if (empty($days)) {
+            return $availability['on_call'] ? 'On-call only' : 'No days set';
+        }
+
+        return implode(', ', $days) . ($availability['on_call'] ? ' + on-call' : '');
+    }
+
     public function getMeta(string $key, mixed $default = null): mixed
     {
         $meta = $this->metas->where('meta_key', $key)->first();

@@ -9,6 +9,8 @@ use App\Models\Client;
 use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 class TripController extends Controller
 {
@@ -33,9 +35,50 @@ class TripController extends Controller
             $query->where('status', $request->status);
         }
 
+        // "Today's Trips" is both ends set to today, so this one pair of fields
+        // covers a single day, a range or an open-ended start/end.
+        $dateFrom = $this->parseDate($request->input('date_from'));
+        $dateTo = $this->parseDate($request->input('date_to'));
+
+        if ($dateFrom) {
+            $query->whereDate('pickup_date', '>=', $dateFrom);
+        }
+
+        if ($dateTo) {
+            $query->whereDate('pickup_date', '<=', $dateTo);
+        }
+
+        if ($request->input('driver_id') === 'unassigned') {
+            $query->whereNull('driver_id');
+        } elseif ($request->filled('driver_id')) {
+            $query->where('driver_id', $request->integer('driver_id'));
+        }
+
         $trips = $query->latest()->paginate(15)->withQueryString();
 
-        return view('content.dispatcher.trip.list', compact('trips'));
+        $drivers = User::where('dispatcher_id', $dispatcher->companyId())
+            ->where('role', 'driver')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('content.dispatcher.trip.list', compact('trips', 'drivers'));
+    }
+
+    /**
+     * A filter date from the query string, or null when it is missing or not
+     * a real date, so a hand-edited URL narrows nothing instead of erroring.
+     */
+    private function parseDate(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d', $value)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     public function create()
@@ -43,7 +86,8 @@ class TripController extends Controller
         $dispatcherId = auth()->user()->companyId();
 
         $clients = Client::where('dispatcher_id', $dispatcherId)->get();
-        $drivers = User::where('dispatcher_id', $dispatcherId)->where('role', 'driver')->get();
+        $drivers = User::where('dispatcher_id', $dispatcherId)->where('role', 'driver')
+            ->with(['assignedVehicle', 'metas'])->orderBy('name')->get();
         $vehicles = Vehicle::where('dispatcher_id', $dispatcherId)->get();
 
         return view('content.dispatcher.trip.create', compact('clients', 'drivers', 'vehicles'));
@@ -70,8 +114,11 @@ class TripController extends Controller
             'trip_type' => 'required|in:one_way,round_trip,recurring',
             'notes' => 'nullable|string',
             
-            'driver_id' => 'nullable|exists:users,id',
-            'vehicle_id' => 'nullable|exists:vehicles,id',
+            // Scoped to this company: 'exists:users,id' alone would have let a
+            // dispatcher put another company's driver on a trip.
+            'driver_id' => ['nullable', Rule::exists('users', 'id')
+                ->where('role', 'driver')
+                ->where('dispatcher_id', auth()->user()->companyId())],
             'billing_type' => 'nullable|string|max:100',
         ]);
 
@@ -85,6 +132,44 @@ class TripController extends Controller
             $validatedData['pickup_time'] = \Carbon\Carbon::parse($validatedData['pickup_time'])->format('H:i:s');
         }
 
+
+        /*
+         * The vehicle comes from whoever is driving, never from the form.
+         * The form shows it read-only, and anything posted for it is ignored:
+         * a trip can only ever run in the vehicle its driver actually has.
+         */
+        $validatedData['vehicle_id'] = $request->filled('driver_id')
+            ? User::driversOf(auth()->user()->companyId())
+                ->whereKey($request->driver_id)
+                ->first()?->assignedVehicle?->id
+            : null;
+
+
+        /*
+         * A driver cannot be put on a trip that falls on a day they do not
+         * work. The form already greys those drivers out; this is the half
+         * that actually enforces it, since a disabled option proves nothing
+         * about what was posted.
+         */
+        if ($request->filled('driver_id')) {
+            $chosen = User::driversOf(auth()->user()->companyId())
+                ->with('metas')
+                ->whereKey($request->driver_id)
+                ->first();
+
+            $pickupDate = $request->filled('pickup_date')
+                ? Carbon::parse($request->input('pickup_date'))
+                : null;
+
+            if ($chosen && ! $chosen->isAvailableOn($pickupDate)) {
+                return back()->withInput()->withErrors([
+                    'driver_id' => $chosen->name . ' does not work on '
+                        . $pickupDate->format('l') . '. They are available '
+                        . $chosen->availabilityLabel() . '.',
+                ]);
+            }
+        }
+
         $validatedData['dispatcher_id'] = auth()->user()->companyId();
         $validatedData['status'] = 'scheduled';
 
@@ -93,10 +178,84 @@ class TripController extends Controller
         return redirect()->route('dispatcher.trip.create')->with('success', 'New Trip created successfully!');
     }
 
+    /**
+     * Trips per driver for one day.
+     *
+     * Answers "who is carrying what today" in one screen, and hands straight
+     * off to the trip list with the same day and driver already filtered, so
+     * the count and the list it came from can never disagree.
+     */
+    public function driverLoad(Request $request)
+    {
+        $companyId = auth()->user()->companyId();
+
+        /*
+         * One day or a span, handled as the same thing: a single day is just a
+         * range whose ends match. That keeps the counts, the links and the
+         * arrows from each needing their own version of the logic.
+         *
+         * Defaults to today, which is the question this page exists to answer.
+         */
+        $from = Carbon::parse(
+            $this->parseDate($request->input('date_from'))
+            ?: $this->parseDate($request->input('date'))
+            ?: now()->toDateString()
+        );
+
+        $to = Carbon::parse($this->parseDate($request->input('date_to')) ?: $from->toDateString());
+
+        // Picked back to front, which flatpickr allows; swapped rather than
+        // returning nothing.
+        if ($to->lt($from)) {
+            [$from, $to] = [$to, $from];
+        }
+
+        $drivers = User::driversOf($companyId)
+            ->with(['metas', 'assignedVehicle'])
+            ->orderBy('name')
+            ->get();
+
+        /*
+         * One grouped query rather than a count per driver: the page would
+         * otherwise fire a query for every row, and the totals below would
+         * need their own on top of that.
+         */
+        $counts = Trip::where('dispatcher_id', $companyId)
+            ->whereBetween('pickup_date', [$from->toDateString(), $to->toDateString()])
+            ->whereNotNull('driver_id')
+            ->selectRaw('driver_id, count(*) as total')
+            ->groupBy('driver_id')
+            ->pluck('total', 'driver_id');
+
+        // Trips nobody is on yet are the ones that need attention, so they are
+        // surfaced rather than left out of a per-driver breakdown.
+        $unassigned = Trip::where('dispatcher_id', $companyId)
+            ->whereBetween('pickup_date', [$from->toDateString(), $to->toDateString()])
+            ->whereNull('driver_id')
+            ->count();
+
+        return view('content.dispatcher.trip.driver-load', [
+            'drivers'    => $drivers,
+            'counts'     => $counts,
+            'from'       => $from,
+            'to'         => $to,
+            // How far the arrows move: a single day steps a day, a week steps
+            // a week, so paging never overlaps or skips.
+            //
+            // Cast, because diffInDays returns a float — without it a single
+            // day comes back as 1.0 and every `=== 1` check in the view misses,
+            // so one day would render as if it were a range.
+            'span'       => (int) $from->diffInDays($to) + 1,
+            'unassigned' => $unassigned,
+            'assigned'   => $counts->sum(),
+        ]);
+    }
+
     public function calendar()
     {
         $dispatcherId = auth()->user()->companyId();
-        $drivers = User::where('dispatcher_id', $dispatcherId)->where('role', 'driver')->get();
+        $drivers = User::where('dispatcher_id', $dispatcherId)->where('role', 'driver')
+            ->with(['assignedVehicle', 'metas'])->orderBy('name')->get();
         return view('content.dispatcher.trip.calendar', compact('drivers'));
     }
 
@@ -179,7 +338,8 @@ class TripController extends Controller
         $trip = Trip::where('dispatcher_id', $dispatcherId)->findOrFail($id);
 
         $clients = Client::where('dispatcher_id', $dispatcherId)->get();
-        $drivers = User::where('dispatcher_id', $dispatcherId)->where('role', 'driver')->get();
+        $drivers = User::where('dispatcher_id', $dispatcherId)->where('role', 'driver')
+            ->with(['assignedVehicle', 'metas'])->orderBy('name')->get();
         $vehicles = Vehicle::where('dispatcher_id', $dispatcherId)->get();
 
         return view('content.dispatcher.trip.edit', compact('trip', 'clients', 'drivers', 'vehicles'));
@@ -210,8 +370,11 @@ class TripController extends Controller
             'notes' => 'nullable|string',
             'status' => 'required|in:' . implode(',', TripStatus::values()),
             
-            'driver_id' => 'nullable|exists:users,id',
-            'vehicle_id' => 'nullable|exists:vehicles,id',
+            // Scoped to this company: 'exists:users,id' alone would have let a
+            // dispatcher put another company's driver on a trip.
+            'driver_id' => ['nullable', Rule::exists('users', 'id')
+                ->where('role', 'driver')
+                ->where('dispatcher_id', auth()->user()->companyId())],
             'billing_type' => 'nullable|string|max:100',
         ]);
 
@@ -223,6 +386,44 @@ class TripController extends Controller
         
         if (!empty($validatedData['pickup_time'])) {
             $validatedData['pickup_time'] = \Carbon\Carbon::parse($validatedData['pickup_time'])->format('H:i:s');
+        }
+
+
+        /*
+         * The vehicle comes from whoever is driving, never from the form.
+         * The form shows it read-only, and anything posted for it is ignored:
+         * a trip can only ever run in the vehicle its driver actually has.
+         */
+        $validatedData['vehicle_id'] = $request->filled('driver_id')
+            ? User::driversOf(auth()->user()->companyId())
+                ->whereKey($request->driver_id)
+                ->first()?->assignedVehicle?->id
+            : null;
+
+
+        /*
+         * A driver cannot be put on a trip that falls on a day they do not
+         * work. The form already greys those drivers out; this is the half
+         * that actually enforces it, since a disabled option proves nothing
+         * about what was posted.
+         */
+        if ($request->filled('driver_id')) {
+            $chosen = User::driversOf(auth()->user()->companyId())
+                ->with('metas')
+                ->whereKey($request->driver_id)
+                ->first();
+
+            $pickupDate = $request->filled('pickup_date')
+                ? Carbon::parse($request->input('pickup_date'))
+                : null;
+
+            if ($chosen && ! $chosen->isAvailableOn($pickupDate)) {
+                return back()->withInput()->withErrors([
+                    'driver_id' => $chosen->name . ' does not work on '
+                        . $pickupDate->format('l') . '. They are available '
+                        . $chosen->availabilityLabel() . '.',
+                ]);
+            }
         }
 
         $trip->update($validatedData);

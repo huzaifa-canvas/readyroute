@@ -36,6 +36,8 @@
         <tr>
           <th>#</th>
           <th>Driver</th>
+          <th>Vehicle</th>
+          <th>Available</th>
           <th>Phone</th>
           <th>License #</th>
           <th>CDL Class</th>
@@ -57,6 +59,36 @@
               </div>
             </div>
           </td>
+          <td>
+            @if($driver->assignedVehicle)
+              <span class="fw-medium text-heading">{{ $driver->assignedVehicle->name }}</span>
+              @if($driver->assignedVehicle->number_plate)
+                <small class="d-block text-muted">{{ $driver->assignedVehicle->number_plate }}</small>
+              @endif
+            @else
+              {{-- A driver with no vehicle cannot run a trip or open a
+                   pre-trip inspection, so it is flagged rather than left blank. --}}
+              <span class="badge bg-label-warning">Not assigned</span>
+            @endif
+          </td>
+          <td>
+            @php($availability = $driver->availability())
+            @if($availability['mon_fri'] || $availability['sat'] || $availability['sun'])
+              <div class="d-flex flex-wrap gap-1">
+                @if($availability['mon_fri'])<span class="badge bg-label-success">Mon&ndash;Fri</span>@endif
+                @if($availability['sat'])<span class="badge bg-label-success">Sat</span>@endif
+                @if($availability['sun'])<span class="badge bg-label-success">Sun</span>@endif
+                @if($availability['on_call'])<span class="badge bg-label-info">On-call</span>@endif
+              </div>
+            @elseif($availability['on_call'])
+              {{-- On-call with no working days: reachable for emergencies, but
+                   not on the roster for any day, so trips cannot be given to
+                   them from the trip form. --}}
+              <span class="badge bg-label-info">On-call only</span>
+            @else
+              <span class="badge bg-label-warning">No days set</span>
+            @endif
+          </td>
           <td>{{ $driver->phone_number ?? '-' }}</td>
           <td>{{ $driver->getMeta('driver_license_number', '-') }}</td>
           <td>{{ $driver->getMeta('cdl_class', '-') }}</td>
@@ -77,7 +109,7 @@
         </tr>
         @empty
         <tr>
-          <td colspan="7" class="text-center py-4 text-muted">No drivers found. Click "Add New Driver" to create one.</td>
+          <td colspan="8" class="text-center py-4 text-muted">No drivers found. Click "Add New Driver" to create one.</td>
         </tr>
         @endforelse
       </tbody>

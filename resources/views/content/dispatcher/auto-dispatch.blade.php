@@ -154,7 +154,7 @@
           $pLng = $trip->pickup_lng ?: (-95.3698 + ($index * 0.04));
           $dLat = $trip->dropoff_lat ?: ($pLat + 0.04);
           $dLng = $trip->dropoff_lng ?: ($pLng + 0.06);
-          $tripNum = 801 + $index;
+          $tripNum = $trip->id;
         @endphp
 
         <div class="unassigned-trip-card trip-item {{ $index === 0 ? 'active-trip-card' : '' }}"

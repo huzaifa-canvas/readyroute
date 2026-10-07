@@ -121,7 +121,7 @@
                 </div>
                 <div class="form-check">
                   <input class="form-check-input" type="checkbox" id="req_o2_tank" name="req_o2_tank" value="1" {{ old('req_o2_tank') ? 'checked' : '' }}>
-                  <label class="form-check-label" for="req_o2_tank">O2 Tank</label>
+                  <label class="form-check-label" for="req_o2_tank">Oxygen Tank</label>
                 </div>
                 <div class="form-check">
                   <input class="form-check-input" type="checkbox" id="req_bariatric" name="req_bariatric" value="1" {{ old('req_bariatric') ? 'checked' : '' }}>
@@ -219,25 +219,36 @@
             <div class="mb-4">
               <label class="form-label fw-semibold" for="driver_id">Assign Driver</label>
               <select id="driver_id" name="driver_id" class="form-select" disabled>
-                <option value="">-Auto-Assign-</option>
+                <option value="" data-vehicle="">-Auto-Assign-</option>
                 @foreach($drivers as $driver)
-                  <option value="{{ $driver->id }}" {{ old('driver_id') == $driver->id ? 'selected' : '' }}>
-                    {{ $driver->name }}
+                  {{-- The vehicle rides along on the option, so picking a
+                       driver can fill the field below without another request. --}}
+                  <option value="{{ $driver->id }}"
+                          data-name="{{ $driver->name }}"
+                          data-mon-fri="{{ $driver->availability()['mon_fri'] ? 1 : 0 }}"
+                          data-sat="{{ $driver->availability()['sat'] ? 1 : 0 }}"
+                          data-sun="{{ $driver->availability()['sun'] ? 1 : 0 }}"
+                          data-days="{{ $driver->availabilityLabel() }}"
+                          data-short="{{ $driver->availabilityShort() }}"
+                          data-vehicle="{{ $driver->assignedVehicle
+                              ? $driver->assignedVehicle->name . ($driver->assignedVehicle->number_plate ? ' — ' . $driver->assignedVehicle->number_plate : '')
+                              : '' }}"
+                          {{ old('driver_id') == $driver->id ? 'selected' : '' }}>
+                    {{ $driver->name }} &mdash; {{ $driver->availabilityShort() }}
                   </option>
                 @endforeach
               </select>
             </div>
 
+            {{-- Read-only on purpose. The vehicle belongs to the driver, so
+                 it is shown rather than chosen, and the server takes it from
+                 the driver regardless of what is posted. Nothing is submitted
+                 from here. --}}
             <div class="mb-4">
-              <label class="form-label fw-semibold" for="vehicle_id">Vehicle</label>
-              <select id="vehicle_id" name="vehicle_id" class="form-select" disabled>
-                <option value="">-Select Vehicle-</option>
-                @foreach($vehicles as $vehicle)
-                  <option value="{{ $vehicle->id }}" {{ old('vehicle_id') == $vehicle->id ? 'selected' : '' }}>
-                    {{ $vehicle->name }} - {{ $vehicle->make_model_year ?: 'Vehicle' }} ({{ $vehicle->number_plate ?: 'No Plate' }})
-                  </option>
-                @endforeach
-              </select>
+              <label class="form-label fw-semibold" for="vehicle_display">Vehicle</label>
+              <input type="text" id="vehicle_display" class="form-control" readonly tabindex="-1"
+                     placeholder="Pick a driver first" value="" />
+              <small class="text-muted">Comes from the driver's assigned vehicle.</small>
             </div>
           </div>
 
@@ -300,9 +311,90 @@ document.addEventListener('DOMContentLoaded', function() {
   const pickupDate = document.getElementById('pickup_date');
   const pickupTime = document.getElementById('pickup_time');
   const driverSelect = document.getElementById('driver_id');
-  const vehicleSelect = document.getElementById('vehicle_id');
+  const vehicleDisplay = document.getElementById('vehicle_display');
   const assignmentContainer = document.getElementById('assignmentContainer');
   const assignmentNotice = document.getElementById('assignmentNotice');
+
+  /*
+   * The vehicle field mirrors the driver. It is never posted — the server
+   * reads the driver's vehicle itself — so this is purely so the dispatcher
+   * can see which vehicle the trip will run in before saving.
+   */
+  function showDriverVehicle() {
+    if (!driverSelect || !vehicleDisplay) return;
+
+    const option = driverSelect.options[driverSelect.selectedIndex];
+    const vehicle = option ? (option.dataset.vehicle || '') : '';
+
+    vehicleDisplay.value = vehicle;
+    vehicleDisplay.placeholder = driverSelect.value && !vehicle
+      ? 'This driver has no vehicle assigned'
+      : 'Pick a driver first';
+  }
+
+  driverSelect?.addEventListener('change', showDriverVehicle);
+  showDriverVehicle();
+
+  /*
+   * Greys out drivers who do not work on the chosen pickup day.
+   *
+   * They stay in the list on purpose — the dispatcher should be able to see
+   * that a driver exists and why they cannot be used, rather than wonder where
+   * they went. The option that is currently selected is never disabled: a
+   * disabled selected option is submitted inconsistently across browsers, and
+   * on an existing trip it would quietly drop the driver on save. The server
+   * refuses an unavailable driver regardless of what the form allows.
+   */
+  function markDriverAvailability() {
+    if (!driverSelect || !pickupDate) return;
+
+    const value = pickupDate.value;
+    const date = value ? new Date(value + 'T00:00:00') : null;
+    const day = date && !isNaN(date) ? date.getDay() : null;   // 0 Sun .. 6 Sat
+
+    Array.from(driverSelect.options).forEach(function (option) {
+      const name = option.dataset.name;
+      if (!name) return;                                        // the placeholder
+
+      let worksToday = true;
+
+      if (day === 6)      worksToday = option.dataset.sat === '1';
+      else if (day === 0) worksToday = option.dataset.sun === '1';
+      else if (day !== null) worksToday = option.dataset.monFri === '1';
+
+      const isSelected = option.selected;
+
+      option.disabled = !worksToday && !isSelected;
+
+      /*
+       * Kept short on purpose: a dropdown option that wraps is harder to scan
+       * than one that just says what is wrong. When the driver does work that
+       * day there is nothing to say, so only the name is shown.
+       */
+      if (day === null) {
+        option.textContent = name + ' — ' + option.dataset.short;
+      } else if (worksToday) {
+        option.textContent = name;
+      } else {
+        option.textContent = name + ' — only ' + option.dataset.short;
+      }
+    });
+
+    // If the chosen driver no longer works that day, say so rather than
+    // leaving a selection that the server is about to reject.
+    const chosen = driverSelect.options[driverSelect.selectedIndex];
+
+    if (chosen && chosen.dataset.name && chosen.disabled || chosen.textContent.indexOf(' — only ') !== -1) {
+      driverSelect.classList.add('is-invalid');
+    } else {
+      driverSelect.classList.remove('is-invalid');
+    }
+  }
+
+  pickupDate?.addEventListener('change', markDriverAvailability);
+  driverSelect?.addEventListener('change', markDriverAvailability);
+  markDriverAvailability();
+
 
   // Preview elements
   const prevDate = document.getElementById('prev_date');
@@ -347,14 +439,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (hasDate && hasTime) {
       // Enable fields
       driverSelect.removeAttribute('disabled');
-      vehicleSelect.removeAttribute('disabled');
       assignmentContainer.style.opacity = '1';
       assignmentContainer.style.pointerEvents = 'auto';
       assignmentNotice.style.display = 'none';
     } else {
       // Disable fields with light shade
       driverSelect.setAttribute('disabled', 'disabled');
-      vehicleSelect.setAttribute('disabled', 'disabled');
       assignmentContainer.style.opacity = '0.55';
       assignmentContainer.style.pointerEvents = 'none';
       assignmentNotice.style.display = 'block';

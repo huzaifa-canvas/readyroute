@@ -95,7 +95,7 @@
             </div>
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="req_o2_tank" id="req_o2_tank" value="1" {{ old('req_o2_tank', $trip->req_o2_tank) ? 'checked' : '' }} />
-              <label class="form-check-label" for="req_o2_tank"><i class="ti tabler-asset me-1"></i>O2 Tank</label>
+              <label class="form-check-label" for="req_o2_tank"><i class="ti tabler-asset me-1"></i>Oxygen Tank</label>
             </div>
             <div class="form-check">
               <input class="form-check-input" type="checkbox" name="req_bariatric" id="req_bariatric" value="1" {{ old('req_bariatric', $trip->req_bariatric) ? 'checked' : '' }} />
@@ -181,23 +181,36 @@
             <select id="driver_id" name="driver_id" class="form-select">
               <option value="">-- Unassigned --</option>
               @foreach($drivers as $driver)
-                <option value="{{ $driver->id }}" {{ old('driver_id', $trip->driver_id) == $driver->id ? 'selected' : '' }}>
-                  {{ $driver->name }}
+                {{-- The vehicle rides along on the option, so picking a driver
+                     can fill the field below without another request. --}}
+                <option value="{{ $driver->id }}"
+                        data-name="{{ $driver->name }}"
+                        data-mon-fri="{{ $driver->availability()['mon_fri'] ? 1 : 0 }}"
+                        data-sat="{{ $driver->availability()['sat'] ? 1 : 0 }}"
+                        data-sun="{{ $driver->availability()['sun'] ? 1 : 0 }}"
+                        data-days="{{ $driver->availabilityLabel() }}"
+                          data-short="{{ $driver->availabilityShort() }}"
+                        data-vehicle="{{ $driver->assignedVehicle
+                            ? $driver->assignedVehicle->name . ($driver->assignedVehicle->number_plate ? ' - ' . $driver->assignedVehicle->number_plate : '')
+                            : '' }}"
+                        {{ old('driver_id', $trip->driver_id) == $driver->id ? 'selected' : '' }}>
+                  {{ $driver->name }} &mdash; {{ $driver->availabilityShort() }}
                 </option>
               @endforeach
             </select>
           </div>
 
+          {{-- Read-only on purpose. The vehicle belongs to the driver, so it
+               is shown rather than chosen, and the server takes it from the
+               driver regardless of what is posted. Nothing is submitted here. --}}
           <div class="mb-3">
-            <label class="form-label" for="vehicle_id">Vehicle</label>
-            <select id="vehicle_id" name="vehicle_id" class="form-select">
-              <option value="">-- Unassigned --</option>
-              @foreach($vehicles as $vehicle)
-                <option value="{{ $vehicle->id }}" {{ old('vehicle_id', $trip->vehicle_id) == $vehicle->id ? 'selected' : '' }}>
-                  {{ $vehicle->name }} ({{ $vehicle->license_plate ?: 'No Plate' }})
-                </option>
-              @endforeach
-            </select>
+            <label class="form-label" for="vehicle_display">Vehicle</label>
+            <input type="text" id="vehicle_display" class="form-control" readonly tabindex="-1"
+                   placeholder="No driver assigned"
+                   value="{{ $trip->driver?->assignedVehicle
+                       ? $trip->driver->assignedVehicle->name . ($trip->driver->assignedVehicle->number_plate ? ' - ' . $trip->driver->assignedVehicle->number_plate : '')
+                       : '' }}" />
+            <small class="text-muted">Comes from the driver's assigned vehicle.</small>
           </div>
 
           <div class="mb-3">
@@ -228,6 +241,92 @@
 @section('page-script')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+
+  /*
+   * The vehicle field mirrors the driver. It is shown, not submitted: the
+   * server reads the driver's vehicle itself, so this only lets the dispatcher
+   * see which vehicle the trip will run in before saving.
+   */
+  (function () {
+    const driverSelect = document.getElementById('driver_id');
+    const vehicleDisplay = document.getElementById('vehicle_display');
+
+    if (!driverSelect || !vehicleDisplay) return;
+
+    driverSelect.addEventListener('change', function () {
+      const option = driverSelect.options[driverSelect.selectedIndex];
+      const vehicle = option ? (option.dataset.vehicle || '') : '';
+
+      vehicleDisplay.value = vehicle;
+      vehicleDisplay.placeholder = driverSelect.value && !vehicle
+        ? 'This driver has no vehicle assigned'
+        : 'No driver assigned';
+    });
+
+    const pickupDate = document.getElementById('pickup_date');
+
+    /*
+     * Greys out drivers who do not work on the chosen pickup day.
+     *
+     * They stay in the list on purpose — the dispatcher should be able to see
+     * that a driver exists and why they cannot be used, rather than wonder where
+     * they went. The option that is currently selected is never disabled: a
+     * disabled selected option is submitted inconsistently across browsers, and
+     * on an existing trip it would quietly drop the driver on save. The server
+     * refuses an unavailable driver regardless of what the form allows.
+     */
+    function markDriverAvailability() {
+      if (!driverSelect || !pickupDate) return;
+
+      const value = pickupDate.value;
+      const date = value ? new Date(value + 'T00:00:00') : null;
+      const day = date && !isNaN(date) ? date.getDay() : null;   // 0 Sun .. 6 Sat
+
+      Array.from(driverSelect.options).forEach(function (option) {
+        const name = option.dataset.name;
+        if (!name) return;                                        // the placeholder
+
+        let worksToday = true;
+
+        if (day === 6)      worksToday = option.dataset.sat === '1';
+        else if (day === 0) worksToday = option.dataset.sun === '1';
+        else if (day !== null) worksToday = option.dataset.monFri === '1';
+
+        const isSelected = option.selected;
+
+        option.disabled = !worksToday && !isSelected;
+
+        /*
+         * Kept short on purpose: a dropdown option that wraps is harder to scan
+         * than one that just says what is wrong. When the driver does work that
+         * day there is nothing to say, so only the name is shown.
+         */
+        if (day === null) {
+          option.textContent = name + ' — ' + option.dataset.short;
+        } else if (worksToday) {
+          option.textContent = name;
+        } else {
+          option.textContent = name + ' — only ' + option.dataset.short;
+        }
+      });
+
+      // If the chosen driver no longer works that day, say so rather than
+      // leaving a selection that the server is about to reject.
+      const chosen = driverSelect.options[driverSelect.selectedIndex];
+
+      if (chosen && chosen.dataset.name && chosen.disabled || chosen.textContent.indexOf(' — only ') !== -1) {
+        driverSelect.classList.add('is-invalid');
+      } else {
+        driverSelect.classList.remove('is-invalid');
+      }
+    }
+
+    pickupDate?.addEventListener('change', markDriverAvailability);
+    driverSelect?.addEventListener('change', markDriverAvailability);
+    markDriverAvailability();
+
+  })();
+
   // Dynamic Select2 Loader to handle Vite async jQuery loading
   function initClientSelect2() {
     if (!window.jQuery) {

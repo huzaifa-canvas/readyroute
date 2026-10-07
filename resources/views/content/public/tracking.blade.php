@@ -297,7 +297,7 @@
       function stamp() {
         var el = document.getElementById('updatedAt');
         if (el) {
-          el.textContent = 'Last checked ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          el.textContent = 'Last checked ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
         }
       }
 

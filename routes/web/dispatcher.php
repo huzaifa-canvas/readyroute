@@ -26,6 +26,7 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     Route::get('trip/list', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'index'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.list');
     Route::get('trip/create', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'create'])->middleware('plan:trips')->middleware('permission:trips.create')->name('dispatcher.trip.create');
     Route::post('trip/store', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'store'])->middleware('plan:trips')->middleware('permission:trips.create')->name('dispatcher.trip.store');
+    Route::get('trip/driver-load', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'driverLoad'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.driver-load');
     Route::get('trip/calendar', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'calendar'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.calendar');
     Route::get('trip/events', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'events'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.events');
     Route::get('trip/details/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'show'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.details');

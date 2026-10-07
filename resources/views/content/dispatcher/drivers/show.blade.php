@@ -136,7 +136,7 @@
                     <span style="font-variant-numeric: tabular-nums;">
                       {{ number_format((float) $point->lat, 4) }}, {{ number_format((float) $point->lng, 4) }}
                     </span>
-                    <span>{{ $point->created_at->format('H:i') }}</span>
+                    <span>{{ $point->created_at->format('h:i A') }}</span>
                   </small>
                 @endforeach
               </div>
@@ -221,7 +221,7 @@
             <tbody class="table-border-bottom-0">
               @forelse($todaysTrips as $trip)
               <tr>
-                <td class="text-nowrap" style="font-variant-numeric: tabular-nums;">{{ $trip->pickup_time }}</td>
+                <td class="text-nowrap" style="font-variant-numeric: tabular-nums;">{{ \Carbon\Carbon::parse($trip->pickup_time)->format('h:i A') }}</td>
                 <td>
                   <a href="{{ route('dispatcher.trip.details', $trip->id) }}" class="fw-semibold d-block">
                     {{ $trip->reference() }}

@@ -187,6 +187,16 @@
         .text-muted, .text-body-secondary { color: ${surface.muted} !important; }
         .table { --bs-table-bg: ${surface.card}; --bs-table-color: ${surface.text}; }
 
+        /* .table-light pins a header row to a pale grey, which on a dark
+           background becomes a light band carrying the theme's light text —
+           the heading row ends up almost invisible. Tinted off the card
+           instead, so it still reads as a header on either ground. */
+        .table-light,
+        .table > :not(caption) > * > .table-light {
+          --bs-table-bg: color-mix(in srgb, ${surface.text} 8%, ${surface.card});
+          --bs-table-color: ${surface.text};
+        }
+
         /* Literal-colour utilities, which would otherwise punch a pale hole in
            a dark page. The coloured variants (.bg-primary and friends) are
            left alone: they carry their own ground. */
