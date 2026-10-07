@@ -2,6 +2,28 @@
 
 @section('title', 'Trip #' . $trip->id . ' Details')
 
+@section('page-style')
+<style>
+  /*
+    The template's danger alert is its brand red on a tint of the same red,
+    which measures 2.69:1 — fine for a passing notice, too light for the one
+    place on this page that says a vehicle was signed off with a fault. The
+    ground stays as the template drew it; only the text is taken darker, and
+    it is derived from the accent so a re-themed palette carries through.
+
+    Scoped to this alert on purpose: every other alert in the panel is left
+    exactly as the template has it.
+  */
+  .inspection-defects {
+    --bs-alert-color: color-mix(in srgb, var(--bs-danger) 68%, #000);
+  }
+
+  .inspection-defects .alert-heading {
+    color: color-mix(in srgb, var(--bs-danger) 68%, #000) !important;
+  }
+</style>
+@endsection
+
 @section('content')
 
 {{-- Header Action Bar --}}
@@ -308,6 +330,162 @@
     </div>
   </div>
 </div>
+
+
+{{-- ── Pre-trip inspection ────────────────────────────────────────────────
+     The driver fills one of these in per day, not per trip, so what is shown
+     here is their check for the day this trip runs. It answers the question an
+     audit asks — was the vehicle checked before this journey — without having
+     to leave the trip. --}}
+@if($trip->driver_id)
+  @php($responses = $inspection ? $inspection->responses : collect())
+  @php($defects = $responses->filter(fn ($r) => $r->status === App\Enums\InspectionItemStatus::Fail))
+  @php($passed = $responses->filter(fn ($r) => $r->status === App\Enums\InspectionItemStatus::Pass)->count())
+  @php($pending = $responses->filter(fn ($r) => $r->status === App\Enums\InspectionItemStatus::Pending)->count())
+
+  <div class="card mt-4 shadow-sm border-0">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2 border-bottom">
+      <div class="d-flex align-items-center gap-2">
+        <i class="ti tabler-clipboard-check text-primary"></i>
+        <div>
+          <h5 class="mb-0">Pre-Trip Inspection</h5>
+          <small class="text-muted">
+            {{ $trip->driver?->name }} &middot;
+            {{ \Carbon\Carbon::parse($trip->pickup_date)->format('D, d M Y') }}
+          </small>
+        </div>
+      </div>
+
+      @if(! $inspection)
+        <span class="badge bg-label-secondary">Not done</span>
+      @elseif($inspection->has_defects)
+        <span class="badge bg-label-danger">
+          {{ $defects->count() }} {{ \Illuminate\Support\Str::plural('defect', $defects->count()) }} reported
+        </span>
+      @elseif($inspection->isSubmitted())
+        <span class="badge bg-label-success">Passed &mdash; cleared to drive</span>
+      @else
+        <span class="badge bg-label-warning">In progress</span>
+      @endif
+    </div>
+
+    @if(! $inspection)
+      <div class="card-body text-center py-5">
+        <i class="ti tabler-clipboard-off icon-48px text-muted d-block mb-2"></i>
+        <h6 class="mb-1">No inspection on record for this date</h6>
+        <p class="text-muted mb-0 small">
+          {{ $trip->driver?->name }} did not complete a pre-trip inspection on
+          {{ \Carbon\Carbon::parse($trip->pickup_date)->format('d M Y') }}.
+        </p>
+      </div>
+    @else
+      {{-- Defects first: the only part of this anyone needs in a hurry. --}}
+      @if($defects->isNotEmpty())
+        <div class="card-body border-bottom pb-3">
+          <div class="alert alert-danger inspection-defects mb-0">
+            <h6 class="alert-heading mb-2">
+              <i class="ti tabler-alert-triangle me-1"></i>Defects reported
+            </h6>
+            <ul class="mb-0 ps-3">
+              @foreach($defects as $defect)
+                <li>
+                  <strong>{{ $defect->item?->label ?? 'Checklist item' }}</strong>
+                  @if($defect->note) &mdash; {{ $defect->note }} @endif
+                </li>
+              @endforeach
+            </ul>
+          </div>
+        </div>
+      @endif
+
+      <div class="card-body border-bottom">
+        <div class="row g-3 text-center">
+          <div class="col-6 col-md-3">
+            <h5 class="mb-0 text-success">{{ $passed }}</h5>
+            <small class="text-muted">Passed</small>
+          </div>
+          <div class="col-6 col-md-3">
+            <h5 class="mb-0 {{ $defects->count() ? 'text-danger' : '' }}">{{ $defects->count() }}</h5>
+            <small class="text-muted">Defects</small>
+          </div>
+          <div class="col-6 col-md-3">
+            <h5 class="mb-0 {{ $pending ? 'text-warning' : '' }}">{{ $pending }}</h5>
+            <small class="text-muted">Not checked</small>
+          </div>
+          <div class="col-6 col-md-3">
+            <h5 class="mb-0">{{ $inspection->vehicle?->name ?? '&mdash;' }}</h5>
+            <small class="text-muted">Vehicle inspected</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Checklist item</th>
+              <th style="width: 10rem;">Result</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            @forelse($inspection->responses->sortBy(fn ($r) => $r->item?->sort_order ?? 999) as $response)
+              <tr>
+                <td class="fw-medium text-heading">{{ $response->item?->label ?? 'Checklist item' }}</td>
+                <td>
+                  @switch($response->status)
+                    @case(App\Enums\InspectionItemStatus::Pass)
+                      <span class="badge bg-label-success">
+                        <i class="ti tabler-check me-1"></i>Pass
+                      </span>
+                      @break
+                    @case(App\Enums\InspectionItemStatus::Fail)
+                      <span class="badge bg-label-danger">
+                        <i class="ti tabler-alert-triangle me-1"></i>Defect
+                      </span>
+                      @break
+                    @default
+                      <span class="badge bg-label-secondary">
+                        <i class="ti tabler-clock me-1"></i>Not checked
+                      </span>
+                  @endswitch
+                </td>
+                <td class="text-muted">{{ $response->note ?: '—' }}</td>
+              </tr>
+            @empty
+              <tr>
+                <td colspan="3" class="text-center text-muted py-4">No checklist items recorded.</td>
+              </tr>
+            @endforelse
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3 border-top">
+        <small class="text-muted">
+          @if($inspection->submitted_at)
+            <i class="ti tabler-circle-check me-1"></i>
+            Signed off {{ $inspection->submitted_at->format('d M Y, h:i A') }}
+          @else
+            <i class="ti tabler-progress me-1"></i>
+            Started but not signed off yet
+          @endif
+        </small>
+
+        @if($signatureUrl)
+          {{-- Signature sits on a private disk, so this link is temporary. --}}
+          <div class="d-flex align-items-center gap-2">
+            <small class="text-muted">Driver signature</small>
+            <a href="{{ $signatureUrl }}" target="_blank" rel="noopener"
+               class="border rounded px-2 py-1 bg-white d-inline-flex align-items-center">
+              <img src="{{ $signatureUrl }}" alt="Driver signature" style="height: 38px;" />
+            </a>
+          </div>
+        @endif
+      </div>
+    @endif
+  </div>
+@endif
 
 @endsection
 

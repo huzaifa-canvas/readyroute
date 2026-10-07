@@ -8,6 +8,8 @@ use App\Models\Trip;
 use App\Models\Client;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\VehicleInspection;
+use App\Services\SignatureService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -323,13 +325,38 @@ class TripController extends Controller
         return response()->json($events);
     }
 
-    public function show($id)
+    public function show($id, SignatureService $signatures)
     {
         $trip = Trip::with(['client', 'driver', 'vehicle'])
             ->where('dispatcher_id', auth()->user()->companyId())
             ->findOrFail($id);
 
-        return view('content.dispatcher.trip.show', compact('trip'));
+        /*
+         * The driver's pre-trip inspection for the day this trip runs.
+         *
+         * A driver fills one in per day, not per trip, so it is looked up by
+         * driver and date. Showing it here is what lets the office answer
+         * "was the vehicle checked before this journey?" without leaving the
+         * trip — which is the question an audit actually asks.
+         */
+        $inspection = null;
+        $signatureUrl = null;
+
+        if ($trip->driver_id && $trip->pickup_date) {
+            $inspection = VehicleInspection::with(['responses.item', 'vehicle'])
+                ->where('dispatcher_id', $trip->dispatcher_id)
+                ->where('driver_id', $trip->driver_id)
+                ->whereDate('inspection_date', $trip->pickup_date)
+                ->first();
+
+            // Signed off, so there is a signature to show. Temporary, because
+            // the file lives on a private disk.
+            if ($inspection) {
+                $signatureUrl = $signatures->temporaryUrl($inspection->signature_path);
+            }
+        }
+
+        return view('content.dispatcher.trip.show', compact('trip', 'inspection', 'signatureUrl'));
     }
 
     public function edit($id)

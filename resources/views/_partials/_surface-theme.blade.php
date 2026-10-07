@@ -184,6 +184,18 @@
         }
 
         .text-heading, .text-body, h1, h2, h3, h4, h5, h6 { color: ${surface.text} !important; }
+
+        /* Alerts, badges and buttons carry their own ground, so the heading
+           colour above must not reach inside them: an <h6> in a red alert was
+           being painted the page's light text on a light red panel, which came
+           out at 1.15:1 — effectively invisible. More specific than the rule
+           above, which is what lets it win between two !important declarations. */
+        .alert .alert-heading,
+        .alert h1, .alert h2, .alert h3, .alert h4, .alert h5, .alert h6,
+        .badge h1, .badge h2, .badge h3, .badge h4, .badge h5, .badge h6,
+        .btn h1, .btn h2, .btn h3, .btn h4, .btn h5, .btn h6 {
+          color: inherit !important;
+        }
         .text-muted, .text-body-secondary { color: ${surface.muted} !important; }
         .table { --bs-table-bg: ${surface.card}; --bs-table-color: ${surface.text}; }
 
