@@ -69,10 +69,19 @@ class TripLifecycleService
             throw new RuntimeException('Drivers cannot set a trip to ' . $to->label() . '.');
         }
 
-        // Setting off is the moment the vehicle goes on the road, so that is
-        // where an unsigned pre-trip inspection stops the driver.
+        /*
+         * Setting off is the moment the vehicle goes on the road, so that is
+         * where an unsigned pre-trip inspection stops the driver.
+         *
+         * Checked against the driver's own vehicle, not the trip's. A driver
+         * can only ever inspect the vehicle assigned to them — todayFor()
+         * records the inspection against that one — so asking about any other
+         * vehicle produces a check nothing can satisfy. Where a trip carried a
+         * different vehicle_id, the driver was told to complete an inspection
+         * they had in fact already completed, with no way to clear it.
+         */
         if ($from === TripStatus::Scheduled) {
-            $this->inspections->ensureClearedFor($driver, $trip->vehicle_id);
+            $this->inspections->ensureClearedFor($driver);
         }
 
         $now = now();

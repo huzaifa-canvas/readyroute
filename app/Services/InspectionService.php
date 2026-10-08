@@ -328,6 +328,17 @@ class InspectionService
             return;
         }
 
+        /*
+         * No vehicle means there is nothing to inspect, so telling them to go
+         * and complete an inspection sends them to a screen that refuses to
+         * open. Name the real problem instead.
+         */
+        if (! ($vehicleId ?: $driver->assignedVehicle?->id)) {
+            throw new RuntimeException(
+                'No vehicle is assigned to you yet. Please contact your dispatcher.'
+            );
+        }
+
         if (! $this->isClearedToday($driver, $vehicleId)) {
             throw new RuntimeException(
                 "Please complete and sign today's pre-trip inspection before starting this trip."
