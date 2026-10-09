@@ -82,6 +82,7 @@ class User extends Authenticatable
             'renews_at' => 'date',
             'trial_ends_at' => 'datetime',
             'cancels_at' => 'datetime',
+            'pending_plan_starts_at' => 'datetime',
         ];
     }
 
@@ -412,6 +413,23 @@ class User extends Authenticatable
     public function subscriptionPlan()
     {
         return $this->belongsTo(SubscriptionPlan::class, 'subscription_plan_id');
+    }
+
+    /**
+     * The tier they have asked to move to at the end of the paid period.
+     *
+     * Not what they are on — planUsage(), the feature gates and everything
+     * else keep reading subscriptionPlan() until the date arrives.
+     */
+    public function pendingPlan()
+    {
+        return $this->belongsTo(SubscriptionPlan::class, 'pending_plan_id');
+    }
+
+    /** A plan change is waiting for the current period to run out. */
+    public function hasPendingPlanChange(): bool
+    {
+        return $this->pending_plan_id !== null;
     }
 
     public function invoices()

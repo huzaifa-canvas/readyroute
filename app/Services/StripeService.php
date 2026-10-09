@@ -312,12 +312,26 @@ class StripeService
         if ($existing) {
             // Paying already — move them to the new price in place.
             if (in_array($existing->status, ['active', 'trialing'], true)) {
+                // A schedule and an immediate switch would fight over the same
+                // subscription; the one they just asked for wins.
+                $this->releaseSchedule($company);
+
                 $updated = $this->client()->subscriptions->update($existing->id, [
                     'items' => [[
                         'id'    => $existing->items->data[0]->id,
                         'price' => $priceId,
                     ]],
-                    'proration_behavior'   => 'create_prorations',
+                    /*
+                     * Invoiced now, not folded into next month's bill.
+                     *
+                     * They are being given the new tier this minute, so the
+                     * difference is charged this minute — Stripe credits the
+                     * unused part of the plan they are leaving, which is why
+                     * moving up costs the gap rather than the full price. A
+                     * charge that appears weeks later, against a change they
+                     * made today, is the kind of surprise people dispute.
+                     */
+                    'proration_behavior'   => 'always_invoice',
                     'cancel_at_period_end' => false,
                     'metadata'             => [
                         'company_id' => (string) $company->id,
@@ -326,8 +340,11 @@ class StripeService
                 ]);
 
                 $company->forceFill([
-                    'subscription_plan_id' => $plan->id,
-                    'cancels_at'           => null,
+                    'subscription_plan_id'   => $plan->id,
+                    'cancels_at'             => null,
+                    'stripe_schedule_id'     => null,
+                    'pending_plan_id'        => null,
+                    'pending_plan_starts_at' => null,
                 ])->save();
 
                 $this->syncSubscriptionState($company);
@@ -396,6 +413,128 @@ class StripeService
             'status'           => $subscription->status,
             'requires_payment' => true,
         ];
+    }
+
+    /**
+     * Move the company to another tier when the period they have paid for ends.
+     *
+     * Nothing is charged today and nothing changes today: they keep the plan
+     * they bought until its last day, and the new one begins when the next
+     * period does. Stripe holds this as a two-phase subscription schedule, so
+     * it still happens on the date even if our server is never asked again.
+     *
+     * Returns the date the new plan starts.
+     */
+    public function schedulePlanChange(User $company, SubscriptionPlan $plan): \Illuminate\Support\Carbon
+    {
+        $priceId = $this->syncPlan($plan);
+
+        if (! $priceId) {
+            throw new \RuntimeException('That plan has no price in Stripe yet.');
+        }
+
+        $subscription = $this->currentSubscription($company);
+
+        if (! $subscription || ! in_array($subscription->status, ['active', 'trialing'], true)) {
+            throw new \RuntimeException('There is no running subscription to change.');
+        }
+
+        $item         = $subscription->items->data[0];
+        $currentPrice = $item->price->id;
+
+        if ($currentPrice === $priceId) {
+            throw new \RuntimeException('You are already on that plan.');
+        }
+
+        // A change asked for twice replaces the first one rather than stacking
+        // schedules, so the customer can keep changing their mind.
+        $this->releaseSchedule($company);
+
+        $schedule = $this->client()->subscriptionSchedules->create([
+            'from_subscription' => $subscription->id,
+        ]);
+
+        $phase = $schedule->phases[0];
+
+        $schedule = $this->client()->subscriptionSchedules->update($schedule->id, [
+            // Once the new phase has run, Stripe hands the subscription back
+            // and it simply keeps renewing on the new price.
+            'end_behavior' => 'release',
+            'phases'       => [
+                [
+                    'items'              => [['price' => $currentPrice, 'quantity' => 1]],
+                    'start_date'         => $phase->start_date,
+                    'end_date'           => $phase->end_date,
+                    'proration_behavior' => 'none',
+                ],
+                [
+                    'items'              => [['price' => $priceId, 'quantity' => 1]],
+                    'proration_behavior' => 'none',
+                ],
+            ],
+            'metadata' => [
+                'company_id'      => (string) $company->id,
+                'pending_plan_id' => (string) $plan->id,
+            ],
+        ]);
+
+        $startsAt = now()->setTimestamp($phase->end_date);
+
+        $company->forceFill([
+            'stripe_schedule_id'     => $schedule->id,
+            'pending_plan_id'        => $plan->id,
+            'pending_plan_starts_at' => $startsAt,
+            // Asking for a different plan is not a cancellation; if they had
+            // one pending, choosing to carry on supersedes it.
+            'cancels_at'             => null,
+        ])->save();
+
+        return $startsAt;
+    }
+
+    /**
+     * Drop a scheduled plan change and stay where they are.
+     */
+    public function cancelScheduledPlanChange(User $company): bool
+    {
+        $released = $this->releaseSchedule($company);
+
+        $company->forceFill([
+            'stripe_schedule_id'     => null,
+            'pending_plan_id'        => null,
+            'pending_plan_starts_at' => null,
+        ])->save();
+
+        return $released;
+    }
+
+    /**
+     * Hand the subscription back from its schedule, leaving it untouched.
+     *
+     * Releasing is not cancelling: the subscription carries on exactly as it
+     * is, only without the future phase. A schedule that has already finished
+     * or was removed in the dashboard is not an error here — the goal is that
+     * no schedule is attached afterwards, and that is already true.
+     */
+    private function releaseSchedule(User $company): bool
+    {
+        if (blank($company->stripe_schedule_id)) {
+            return false;
+        }
+
+        try {
+            $this->client()->subscriptionSchedules->release($company->stripe_schedule_id);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::info('Subscription schedule could not be released', [
+                'company_id' => $company->id,
+                'schedule'   => $company->stripe_schedule_id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     /**
@@ -493,9 +632,67 @@ class StripeService
             ? now()->setTimestamp($subscription->cancel_at)
             : null;
 
-        $company->forceFill($changes)->save();
+        $company->forceFill(array_merge($changes, $this->reconcilePendingPlan($company, $subscription)))->save();
 
         return $status;
+    }
+
+    /**
+     * Work out where a scheduled plan change has got to.
+     *
+     * The switch itself is Stripe's to make, on the date, whether or not
+     * anyone has opened this panel. All that is decided here is what our own
+     * row should say about it:
+     *
+     *  - the live price is the one they were waiting for, so the change has
+     *    happened and they are simply on the new plan now;
+     *  - the schedule is gone but the price never moved, so it was released
+     *    or removed and there is nothing pending any more;
+     *  - otherwise the change is still ahead of them, and the date is taken
+     *    from the schedule rather than from whatever we stored, so a shifted
+     *    billing period does not leave the panel quoting a stale date.
+     */
+    private function reconcilePendingPlan(User $company, object $subscription): array
+    {
+        if (blank($company->pending_plan_id)) {
+            return [];
+        }
+
+        $cleared = [
+            'pending_plan_id'        => null,
+            'pending_plan_starts_at' => null,
+            'stripe_schedule_id'     => null,
+        ];
+
+        $pendingPriceId = SubscriptionPlan::find($company->pending_plan_id)?->stripe_price_id;
+        $livePriceId    = $subscription->items->data[0]->price->id ?? null;
+
+        if ($pendingPriceId && $livePriceId === $pendingPriceId) {
+            return $cleared + ['subscription_plan_id' => $company->pending_plan_id];
+        }
+
+        if (blank($company->stripe_schedule_id)) {
+            return $cleared;
+        }
+
+        try {
+            $schedule = $this->client()->subscriptionSchedules->retrieve($company->stripe_schedule_id, []);
+        } catch (\Throwable $e) {
+            Log::info('Scheduled plan change could not be read', [
+                'company_id' => $company->id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        if (! in_array($schedule->status, ['active', 'not_started'], true)) {
+            return $cleared;
+        }
+
+        $startsAt = $schedule->phases[1]->start_date ?? null;
+
+        return $startsAt ? ['pending_plan_starts_at' => now()->setTimestamp($startsAt)] : [];
     }
 
     /**
@@ -544,6 +741,18 @@ class StripeService
             $company->forceFill(['subscription_status' => 'cancelled'])->save();
 
             return null;
+        }
+
+        /*
+         * A plan change still waiting for the renewal date has to go first.
+         *
+         * Stripe refuses to set cancel_at_period_end on a subscription a
+         * schedule is driving, so leaving one attached made the Cancel button
+         * fail outright. Stopping altogether also answers the question the
+         * scheduled change was asking, so there is nothing to preserve.
+         */
+        if (filled($company->stripe_schedule_id)) {
+            $this->cancelScheduledPlanChange($company);
         }
 
         try {

@@ -11,6 +11,13 @@
     $plan    = $company->subscriptionPlan;
     $isOwner = auth()->user()->isCompanyOwner() || auth()->user()->isAdmin();
     $labels  = ['vehicle' => 'Vehicles', 'driver' => 'Drivers', 'trip' => 'Trips this month'];
+
+    // Someone paying today is changing plans, not buying one, and the two
+    // read very differently: they already have a date they are paid up to.
+    $isPaying    = $company->subscription_status === 'active';
+    $pendingPlan = $company->pendingPlan;
+    $changesOn   = $company->pending_plan_starts_at;
+    $paidUntil   = $company->cancels_at?->isFuture() ? $company->cancels_at : $company->renews_at;
   @endphp
 
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
@@ -120,7 +127,32 @@
                   @endif
                 </dd>
               @endif
+
+              @if($pendingPlan)
+                <dt class="col-6 text-muted fw-normal small py-1">Then moves to</dt>
+                <dd class="col-6 py-1">
+                  {{ $pendingPlan->name }}
+                  <small class="text-muted d-block">{{ $pendingPlan->priceLabel() }}</small>
+                </dd>
+              @endif
             </dl>
+
+            @if($pendingPlan)
+              {{-- The whole point of a scheduled change is that nothing
+                   happens today, so the card has to say so plainly: which
+                   plan is running, until when, and what replaces it. Without
+                   this the page looks identical before and after the change
+                   was asked for. --}}
+              <div class="alert alert-info d-flex align-items-start gap-2 mt-4 mb-0 py-2 px-3" role="status">
+                <i class="ti tabler-arrow-right-circle flex-shrink-0 mt-1"></i>
+                <div class="small">
+                  You stay on <strong>{{ $plan->name }}</strong> until
+                  <strong>{{ $changesOn?->format('d M Y') ?? 'the end of this period' }}</strong>.
+                  <strong>{{ $pendingPlan->name }}</strong> starts that day at
+                  {{ $pendingPlan->priceLabel() }} — nothing to pay before then.
+                </div>
+              </div>
+            @endif
           @else
             <div class="text-center py-4 text-muted">
               <i class="ti tabler-credit-card-off fs-2 d-block mb-2 text-secondary"></i>
@@ -166,6 +198,23 @@
                 </button>
               </form>
             @endif
+
+          @elseif($pendingPlan && $canManage)
+            <form method="POST" action="{{ route('dispatcher.subscription.plan-change.cancel') }}">
+              @csrf
+              <button type="submit" class="btn btn-sm btn-label-primary"
+                      onclick="return confirm('Call off the move to {{ $pendingPlan->name }} and stay on {{ $plan->name }}?')">
+                <i class="ti tabler-rotate-clockwise me-1"></i>Stay on {{ $plan->name }}
+              </button>
+            </form>
+
+            <form method="POST" action="{{ route('dispatcher.subscription.cancel') }}">
+              @csrf
+              <button type="submit" class="btn btn-text-danger btn-sm p-0"
+                      onclick="return confirm('Cancel the subscription? You keep access until the end of the period you have paid for.')">
+                Cancel subscription
+              </button>
+            </form>
 
           @elseif($company->subscription_status === 'active' && $canManage)
             <form method="POST" action="{{ route('dispatcher.subscription.cancel') }}">
@@ -243,6 +292,8 @@
                            running. --}}
                       @if($current && $company->subscription_status === 'active')
                         <span class="badge bg-primary flex-shrink-0">Current</span>
+                      @elseif($pendingPlan && $pendingPlan->id === $option->id)
+                        <span class="badge bg-label-info flex-shrink-0">Starts {{ $changesOn?->format('d M') }}</span>
                       @elseif($current)
                         <span class="badge bg-label-secondary flex-shrink-0">Previous</span>
                       @elseif($option->is_featured)
@@ -291,6 +342,27 @@
                       <button type="button" class="btn btn-label-secondary w-100" disabled>
                         Payments unavailable
                       </button>
+                    @elseif($pendingPlan && $pendingPlan->id === $option->id)
+                      <button type="button" class="btn btn-label-info w-100" disabled>
+                        Starts {{ $changesOn?->format('d M Y') }}
+                      </button>
+                    @elseif($isPaying && ! $current)
+                      {{-- Already paying, so this is a change of plan rather
+                           than a purchase: it opens the dialog that explains
+                           when it takes effect instead of going straight to a
+                           card form. --}}
+                      <button type="button" class="btn btn-primary w-100 change-plan"
+                              data-plan-id="{{ $option->id }}"
+                              data-plan-name="{{ $option->name }}"
+                              data-plan-price="{{ number_format((float) $option->price_amount, 2) }}"
+                              data-plan-price-label="{{ $option->priceLabel() }}"
+                              data-direction="{{ $plan && $option->price_amount > $plan->price_amount ? 'up' : 'down' }}">
+                        @if($plan && $option->price_amount > $plan->price_amount)
+                          Upgrade to {{ $option->name }}
+                        @else
+                          Switch to {{ $option->name }}
+                        @endif
+                      </button>
                     @else
                       <button type="button" class="btn btn-primary w-100 choose-plan"
                               data-plan-id="{{ $option->id }}"
@@ -309,6 +381,97 @@
     </div>
   </div>
 </div>
+
+{{-- Changing plan. Only reachable with a subscription already running, which
+     is what makes the timing a real choice: there is a period they have paid
+     for, and they can either let it finish or cut it short and settle the
+     difference. The dialog exists because doing either one silently is what
+     made the old behaviour impossible to predict. --}}
+@if($canPay && $isPaying)
+<div class="modal fade" id="changeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-0">Move to <span id="changePlanName"></span></h5>
+          <small class="text-muted">
+            You are on {{ $plan?->name ?? 'your current plan' }}@if($paidUntil), paid until {{ $paidUntil->format('d M Y') }}@endif.
+          </small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="alert alert-danger d-none" id="changeError" role="alert"></div>
+
+        @if($company->cancels_at?->isFuture())
+          {{-- Choosing a plan is Stripe's own signal to keep the subscription
+               running, so the cancellation goes away either way. Better said
+               here than discovered later on the billing page. --}}
+          <div class="alert alert-warning d-flex align-items-start gap-2 py-2 px-3" role="alert">
+            <i class="ti tabler-info-circle flex-shrink-0 mt-1"></i>
+            <div class="small">
+              Your subscription is set to end on
+              <strong>{{ $company->cancels_at->format('d M Y') }}</strong>.
+              Moving to another plan calls that off and the subscription carries on.
+            </div>
+          </div>
+        @endif
+
+        <div class="row g-3" id="changeChoices">
+          <div class="col-12 col-md-6">
+            <div class="border rounded h-100 p-4 d-flex flex-column">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="ti tabler-calendar-check text-primary"></i>
+                <h6 class="mb-0">At your renewal date</h6>
+              </div>
+              <p class="text-muted small flex-grow-1 mb-3">
+                You keep {{ $plan?->name ?? 'your current plan' }} and everything on it
+                @if($paidUntil)until <strong>{{ $paidUntil->format('d M Y') }}</strong>.@else until this period ends.@endif
+                <span id="changeRenewalLine"></span> starts that day and is billed then.
+                <strong>Nothing is charged today.</strong>
+              </p>
+              <button type="button" class="btn btn-primary w-100" id="changeAtRenewal">
+                <span class="spinner-border spinner-border-sm me-2 d-none"></span>
+                @if($paidUntil)Start on {{ $paidUntil->format('d M Y') }}@else Start at renewal @endif
+              </button>
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <div class="border rounded h-100 p-4 d-flex flex-column">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="ti tabler-bolt text-warning"></i>
+                <h6 class="mb-0">Right now</h6>
+              </div>
+              <p class="text-muted small flex-grow-1 mb-3">
+                You move across immediately. Stripe credits the unused part of
+                {{ $plan?->name ?? 'your current plan' }} and charges the
+                difference today, so an upgrade costs the gap rather than the
+                full price. After that you pay <span id="changeNowPrice"></span>.
+              </p>
+              <button type="button" class="btn btn-label-primary w-100" id="changeNow">
+                <span class="spinner-border spinner-border-sm me-2 d-none"></span>
+                Switch now and pay the difference
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="changeDone" class="text-center py-5 d-none">
+          <i class="ti tabler-circle-check text-success" style="font-size: 3rem;"></i>
+          <h5 class="mt-3 mb-1" id="changeDoneTitle"></h5>
+          <p class="text-muted small mb-0" id="changeDoneBody"></p>
+        </div>
+      </div>
+
+      <div class="modal-footer" id="changeFooter">
+        <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Keep my current plan</button>
+      </div>
+    </div>
+  </div>
+</div>
+@endif
 
 {{-- Payment. Stripe's Payment Element renders the card fields inside this
      modal, so the customer pays without ever leaving the panel and no card
@@ -439,14 +602,14 @@
             return;
           }
 
-          // A company already subscribed is simply moved to the new price;
-          // Stripe prorates it, so there is no card to collect.
+          // A company already subscribed is moved to the new price against the
+          // card Stripe already holds, so there is nothing to collect here.
           if (json.data.requires_payment === false) {
             loading.classList.add('d-none');
             footer.classList.add('d-none');
             success.querySelector('h5').textContent = 'Plan changed';
-            success.querySelector('p').textContent =
-              'You are now on the ' + json.data.plan + '. The difference is prorated on your next invoice.';
+            success.querySelector('p').textContent = json.data.message
+              || ('You are now on the ' + json.data.plan + '. The difference for the rest of this period has been charged.');
             success.classList.remove('d-none');
             setTimeout(function () { window.location.reload(); }, 1800);
             return;
@@ -475,6 +638,96 @@
         }
       });
     });
+
+    /*
+     * Changing plan while one is already running.
+     *
+     * Both choices go to the same endpoint; `when` is the whole difference.
+     * Neither needs a card: Stripe already has one on file for this
+     * subscription, so the immediate switch is invoiced against it rather
+     * than collected through a payment form.
+     */
+    const changeEl    = document.getElementById('changeModal');
+    const changeModal = changeEl ? new bootstrap.Modal(changeEl) : null;
+
+    if (changeModal) {
+      const choices   = document.getElementById('changeChoices');
+      const done      = document.getElementById('changeDone');
+      const doneTitle = document.getElementById('changeDoneTitle');
+      const doneBody  = document.getElementById('changeDoneBody');
+      const changeFoot  = document.getElementById('changeFooter');
+      const changeError = document.getElementById('changeError');
+      const atRenewal = document.getElementById('changeAtRenewal');
+      const rightNow  = document.getElementById('changeNow');
+
+      let chosen = null;
+
+      function busy(button, on) {
+        button.querySelector('.spinner-border').classList.toggle('d-none', !on);
+        atRenewal.disabled = on;
+        rightNow.disabled  = on;
+      }
+
+      document.querySelectorAll('.change-plan').forEach(function (button) {
+        button.addEventListener('click', function () {
+          chosen = button.dataset;
+          document.getElementById('changePlanName').textContent = chosen.planName;
+          document.getElementById('changeRenewalLine').textContent = chosen.planName;
+          document.getElementById('changeNowPrice').textContent = chosen.planPriceLabel;
+
+          choices.classList.remove('d-none');
+          done.classList.add('d-none');
+          changeFoot.classList.remove('d-none');
+          changeError.classList.add('d-none');
+          atRenewal.disabled = false;
+          rightNow.disabled  = false;
+          changeModal.show();
+        });
+      });
+
+      async function change(when, button) {
+        if (!chosen) return;
+        busy(button, true);
+        changeError.classList.add('d-none');
+
+        try {
+          const response = await fetch(@json(route('dispatcher.subscription.checkout')), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-CSRF-TOKEN': csrf(),
+            },
+            body: JSON.stringify({ subscription_plan_id: chosen.planId, when: when }),
+          });
+
+          const json = await response.json();
+
+          if (!response.ok || !json.status) {
+            changeError.textContent = json.message || 'That change could not be made.';
+            changeError.classList.remove('d-none');
+            busy(button, false);
+            return;
+          }
+
+          choices.classList.add('d-none');
+          changeFoot.classList.add('d-none');
+          doneTitle.textContent = json.data.scheduled ? 'Change scheduled' : 'Plan changed';
+          doneBody.textContent  = json.data.message
+            || ('You are now on the ' + json.data.plan + '.');
+          done.classList.remove('d-none');
+
+          setTimeout(function () { window.location.reload(); }, 2600);
+        } catch (error) {
+          changeError.textContent = 'Could not reach the server. Please try again.';
+          changeError.classList.remove('d-none');
+          busy(button, false);
+        }
+      }
+
+      atRenewal.addEventListener('click', function () { change('renewal', atRenewal); });
+      rightNow.addEventListener('click',  function () { change('now', rightNow); });
+    }
 
     submit?.addEventListener('click', async function () {
       if (!elements) return;

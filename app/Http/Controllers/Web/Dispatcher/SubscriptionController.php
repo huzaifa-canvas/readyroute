@@ -73,6 +73,9 @@ class SubscriptionController extends Controller
 
         $request->validate([
             'subscription_plan_id' => ['required', 'integer', 'exists:subscription_plans,id'],
+            // 'renewal' keeps them on what they paid for until it runs out;
+            // 'now' moves them this minute and charges the difference.
+            'when'                 => ['nullable', 'in:now,renewal'],
         ]);
 
         $company = User::findOrFail(auth()->user()->companyId());
@@ -92,6 +95,41 @@ class SubscriptionController extends Controller
             ], 422);
         }
 
+        /*
+         * A company already paying can wait for the period it bought to end.
+         *
+         * Only offered to someone with a running subscription: there is
+         * nothing to wait for otherwise, and no period end to move to.
+         */
+        if ($request->input('when') === 'renewal' && $company->subscription_status === 'active') {
+            try {
+                $startsAt = $this->stripe->schedulePlanChange($company, $plan);
+            } catch (\RuntimeException $e) {
+                return response()->json(['status' => false, 'message' => $e->getMessage()], 422);
+            } catch (\Throwable $e) {
+                report($e);
+
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'That change could not be scheduled. Please try again.',
+                ], 422);
+            }
+
+            return response()->json([
+                'status' => true,
+                'data'   => [
+                    'client_secret'    => null,
+                    'requires_payment' => false,
+                    'scheduled'        => true,
+                    'plan'             => $plan->name,
+                    'starts_on'        => $startsAt->format('d M Y'),
+                    'message'          => 'You stay on ' . ($company->subscriptionPlan?->name ?? 'your current plan')
+                        . ' until ' . $startsAt->format('d M Y') . '. ' . $plan->name
+                        . ' starts that day, and the new price applies from then.',
+                ],
+            ]);
+        }
+
         try {
             $intent = $this->stripe->startSubscription($company, $plan);
         } catch (\Throwable $e) {
@@ -108,10 +146,16 @@ class SubscriptionController extends Controller
             'data'   => [
                 'client_secret' => $intent['client_secret'],
                 // A company already paying is moved to the new price in place;
-                // Stripe prorates it and there is no card step to show.
+                // Stripe charges the difference against the card it already
+                // holds, so there is no card step to show.
                 'requires_payment' => $intent['requires_payment'],
                 'plan'             => $plan->name,
                 'amount'           => (float) $plan->price_amount,
+                'message'          => $intent['requires_payment']
+                    ? null
+                    : 'You are on ' . $plan->name . ' from now. The difference for the rest of '
+                        . 'this period has been charged to your card, and ' . $plan->priceLabel()
+                        . ' applies from your next renewal.',
             ],
         ]);
     }
@@ -173,6 +217,31 @@ class SubscriptionController extends Controller
         return back()->with('success', $endsAt
             ? 'Your subscription will not renew. You keep full access until ' . $endsAt->format('d M Y') . '.'
             : 'Your subscription has been cancelled.');
+    }
+
+    /**
+     * Drop a plan change that has not happened yet.
+     *
+     * Nothing was charged for it, so backing out costs nothing and leaves the
+     * current subscription exactly as it was.
+     */
+    public function cancelPlanChange()
+    {
+        $this->authorizeOwner();
+
+        $company = User::findOrFail(auth()->user()->companyId());
+        $pending = $company->pendingPlan?->name;
+
+        if (! $company->hasPendingPlanChange()) {
+            return back()->with('error', 'There is no upcoming plan change to cancel.');
+        }
+
+        $this->stripe->cancelScheduledPlanChange($company);
+
+        return back()->with('success', $pending
+            ? 'The move to ' . $pending . ' has been called off. You stay on '
+                . ($company->subscriptionPlan?->name ?? 'your current plan') . '.'
+            : 'The upcoming plan change has been called off.');
     }
 
     /**
