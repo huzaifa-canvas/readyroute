@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Web\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -54,6 +56,46 @@ class SecurityController extends Controller
     /**
      * Change the signed-in admin's own password.
      */
+    /**
+     * The admin's own details.
+     *
+     * Kept on this page rather than given one of its own: it is the only
+     * account-level screen the platform admin has, and splitting name and
+     * password across two pages would be two places to look for one thing.
+     */
+    public function updateProfile(Request $request)
+    {
+        $admin = $request->user();
+
+        $request->validate([
+            'name'   => ['required', 'string', 'max:255'],
+            'email'  => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($admin->id)],
+            'phone'  => ['nullable', 'string', 'max:50'],
+            'avatar' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
+        ]);
+
+        $admin->fill([
+            'name'         => $request->name,
+            'email'        => $request->email,
+            'phone_number' => $request->phone,
+        ]);
+
+        if ($request->hasFile('avatar')) {
+            // Stored on the public disk, which is where every other uploaded
+            // avatar in the app lives; avatar_url already falls back to the
+            // default when a file goes missing.
+            if ($admin->avatar && str_starts_with($admin->avatar, 'profile_images/')) {
+                Storage::disk('public')->delete($admin->avatar);
+            }
+
+            $admin->avatar = $request->file('avatar')->store('profile_images', 'public');
+        }
+
+        $admin->save();
+
+        return back()->with('success_profile', 'Your details have been updated.');
+    }
+
     public function updatePassword(Request $request)
     {
         $request->validate([

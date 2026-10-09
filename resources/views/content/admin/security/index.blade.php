@@ -110,6 +110,74 @@
           <small class="text-muted">Signed in as {{ auth()->user()->email }}</small>
         </div>
         <div class="card-body">
+          @if(session('success_profile'))
+            <div class="alert alert-success alert-dismissible" role="alert">
+              <i class="ti tabler-circle-check me-1"></i>{{ session('success_profile') }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          @endif
+
+          {{-- The admin's own details. They live beside the password because
+               this is the only account screen the platform admin has, and two
+               pages for one account would be two places to go looking. --}}
+          <form method="POST" action="{{ route('admin.security.profile') }}"
+                enctype="multipart/form-data" class="mb-4 pb-4 border-bottom">
+            @csrf
+
+            <h6 class="mb-3">Your details</h6>
+
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <div class="avatar avatar-lg">
+                <img src="{{ auth()->user()->avatar_url }}" alt="{{ auth()->user()->name }}"
+                     class="rounded-circle" id="adminAvatarPreview" />
+              </div>
+              <div>
+                <label class="btn btn-sm btn-label-primary mb-1" for="avatar">
+                  <i class="ti tabler-upload me-1"></i>Change photo
+                  <input type="file" id="avatar" name="avatar" class="d-none"
+                         accept="image/png, image/jpeg, image/gif, image/webp" />
+                </label>
+                <small class="d-block text-muted">JPG, PNG, GIF or WebP, up to 2&nbsp;MB.</small>
+                @error('avatar') <small class="d-block text-danger">{{ $message }}</small> @enderror
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="name">Name</label>
+                <input type="text" id="name" name="name"
+                       class="form-control @error('name') is-invalid @enderror"
+                       value="{{ old('name', auth()->user()->name) }}" required />
+                @error('name') <div class="invalid-feedback">{{ $message }}</div> @enderror
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label" for="email">Email</label>
+                <input type="email" id="email" name="email"
+                       class="form-control @error('email') is-invalid @enderror"
+                       value="{{ old('email', auth()->user()->email) }}" required />
+                @error('email') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                <small class="text-muted">This is the address you sign in with.</small>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label" for="phone">Phone</label>
+                <input type="text" id="phone" name="phone"
+                       class="form-control @error('phone') is-invalid @enderror"
+                       value="{{ old('phone', auth()->user()->phone_number) }}" />
+                @error('phone') <div class="invalid-feedback">{{ $message }}</div> @enderror
+              </div>
+
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                  <i class="ti tabler-device-floppy me-1"></i>Save details
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <h6 class="mb-3">Change password</h6>
+
           <form method="POST" action="{{ route('admin.security.password') }}" class="mb-4">
             @csrf
             <div class="row g-3">
@@ -204,4 +272,25 @@
 
   </div>
 </div>
+@endsection
+
+@section('page-script')
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('avatar');
+    const preview = document.getElementById('adminAvatarPreview');
+
+    if (!input || !preview) return;
+
+    // Shows the chosen file straight away. Without it the only sign the file
+    // was taken is the form reloading after save.
+    input.addEventListener('change', function () {
+      const file = input.files && input.files[0];
+      if (!file) return;
+
+      preview.src = URL.createObjectURL(file);
+      preview.onload = function () { URL.revokeObjectURL(preview.src); };
+    });
+  });
+</script>
 @endsection

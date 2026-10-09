@@ -65,9 +65,16 @@
               <label class="form-label" for="email">Email Address</label>
               <input type="email" id="email" name="email" class="form-control" placeholder="Enter Email Address" value="{{ old('email', $driver->email) }}" required />
             </div>
-            <div class="col-md-12">
+            <div class="form-password-toggle col-md-12">
               <label class="form-label" for="password">Password <small class="text-muted">(leave blank to keep current)</small></label>
-              <input type="password" id="password" name="password" class="form-control" placeholder="Enter New Password" minlength="8" />
+              <div class="input-group input-group-merge">
+                <input type="password" id="password" name="password" class="form-control"
+                       placeholder="Enter New Password" minlength="8" />
+                <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                      aria-label="Show or hide the password">
+                  <i class="icon-base ti tabler-eye-off"></i>
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -201,4 +208,8 @@ function previewImage(input) {
   }
 }
 </script>
+@endsection
+
+@section('page-script')
+@include('_partials._password-toggle')
 @endsection

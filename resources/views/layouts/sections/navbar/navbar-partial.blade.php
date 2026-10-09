@@ -228,8 +228,15 @@
       </a>
       <ul class="dropdown-menu dropdown-menu-end">
         <li>
+          {{-- The name row was a dead link. It is where people click to reach
+               their own account, so it goes there: the admin's only account
+               screen, or the dispatcher's profile. --}}
           <a class="dropdown-item mt-0"
-            href="javascript:void(0);">
+            href="{{ auth()->check()
+              ? (auth()->user()->isAdmin()
+                  ? route('admin.security')
+                  : route('dispatcher.profile.index'))
+              : 'javascript:void(0);' }}">
             <div class="d-flex align-items-center">
               <div class="flex-shrink-0 me-2">
                 <div class="avatar avatar-online">

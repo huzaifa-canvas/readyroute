@@ -26,7 +26,20 @@ class SubscriptionController extends Controller
     public function index()
     {
         $company = User::findOrFail(auth()->user()->companyId());
-        $company->load('subscriptionPlan');
+
+        /*
+         * Read the real state from Stripe before drawing the page.
+         *
+         * Everything else relies on the webhook to keep this row honest, and a
+         * webhook cannot reach a server that Stripe cannot see — on staging it
+         * never arrives at all. Without this the page can sit on "Active" long
+         * after Stripe has ended the subscription, and offer a Cancel button
+         * for something already cancelled. One read on the one page that shows
+         * this is cheap, and it is the page where being wrong is most visible.
+         */
+        $this->stripe->syncSubscriptionState($company);
+
+        $company->refresh()->load('subscriptionPlan');
 
         $plans = SubscriptionPlan::orderBy('price_amount')->get();
         $usage = $company->planUsage();
@@ -149,7 +162,13 @@ class SubscriptionController extends Controller
 
         $company = User::findOrFail(auth()->user()->companyId());
 
-        $endsAt = $this->stripe->cancelAtPeriodEnd($company);
+        try {
+            $endsAt = $this->stripe->cancelAtPeriodEnd($company);
+        } catch (\RuntimeException $e) {
+            // Saying "cancelled" when nothing was cancelled is worse than
+            // saying nothing: the customer stops watching for the charge.
+            return back()->with('error', $e->getMessage());
+        }
 
         return back()->with('success', $endsAt
             ? 'Your subscription will not renew. You keep full access until ' . $endsAt->format('d M Y') . '.'

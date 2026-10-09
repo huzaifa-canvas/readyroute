@@ -81,6 +81,7 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     Route::post('subscription/checkout', [App\Http\Controllers\Web\Dispatcher\SubscriptionController::class, 'checkout'])->middleware('permission:subscription.manage')->name('dispatcher.subscription.checkout');
     Route::post('subscription/confirm', [App\Http\Controllers\Web\Dispatcher\SubscriptionController::class, 'confirm'])->middleware('permission:subscription.manage')->name('dispatcher.subscription.confirm');
     Route::post('subscription/cancel', [App\Http\Controllers\Web\Dispatcher\SubscriptionController::class, 'cancel'])->middleware('permission:subscription.manage')->name('dispatcher.subscription.cancel');
+    Route::post('subscription/resume', [App\Http\Controllers\Web\Dispatcher\SubscriptionController::class, 'resume'])->middleware('permission:subscription.manage')->name('dispatcher.subscription.resume');
 
     // ── Billing & Claims ──────────────────────────
     Route::get('billing', [App\Http\Controllers\Web\Dispatcher\BillingController::class, 'index'])->middleware('plan:billing')->middleware('permission:billing.view')->name('dispatcher.billing.index');

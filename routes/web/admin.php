@@ -63,6 +63,7 @@ Route::prefix('admin')->middleware(['auth', 'role:admin'])->group(function () {
 
     // ── Platform Security ─────────────────────────
     Route::get('security', [SecurityController::class, 'index'])->name('admin.security');
+    Route::post('security/profile', [SecurityController::class, 'updateProfile'])->name('admin.security.profile');
     Route::post('security/password', [SecurityController::class, 'updatePassword'])->name('admin.security.password');
     Route::post('security/sessions', [SecurityController::class, 'signOutOtherSessions'])->name('admin.security.sessions');
 });

@@ -50,11 +50,46 @@
     {{-- Current plan --}}
     <div class="col-12 col-xl-5">
       <div class="card h-100">
+        @php($hasEnded = $company->subscription_status !== 'active')
+
         <div class="card-header">
-          <h5 class="mb-0">Current plan</h5>
+          {{-- The card is a different thing once the subscription is over: it
+               is a record of what they used to be on, not what they are on.
+               Calling it "Current plan" there is what made it read as still
+               running. --}}
+          <h5 class="mb-0">{{ $hasEnded ? 'Previous plan' : 'Current plan' }}</h5>
         </div>
         <div class="card-body">
-          @if($plan)
+          @if($plan && $hasEnded)
+            {{-- Ended. Shown greyed and past-tense, with no price and no
+                 billing date — there is nothing more to pay, and leaving a
+                 future date on the page was the confusing part. --}}
+            <div class="text-center py-3">
+              <span class="badge bg-label-danger mb-3">
+                <i class="ti tabler-circle-x me-1"></i>Subscription ended
+              </span>
+
+              <h4 class="fw-bold mb-1 text-muted text-decoration-line-through">{{ $plan->name }}</h4>
+              <p class="text-muted small mb-3">{{ $plan->description }}</p>
+
+              <dl class="row mb-0 text-start">
+                <dt class="col-6 text-muted fw-normal small py-1">Was on</dt>
+                <dd class="col-6 py-1 text-muted">{{ $plan->name }}</dd>
+
+                <dt class="col-6 text-muted fw-normal small py-1">Started</dt>
+                <dd class="col-6 py-1 text-muted">{{ $company->subscribed_at?->format('d M Y') ?? '—' }}</dd>
+
+                <dt class="col-6 text-muted fw-normal small py-1">Ended</dt>
+                <dd class="col-6 py-1 text-muted">
+                  {{ ($company->cancels_at ?: $company->renews_at)?->format('d M Y') ?? '—' }}
+                </dd>
+              </dl>
+
+              <a href="#available-plans" class="btn btn-primary w-100 mt-4">
+                <i class="ti tabler-rocket me-1"></i>Choose a plan to start again
+              </a>
+            </div>
+          @elseif($plan)
             <div class="d-flex flex-wrap align-items-baseline gap-2 mb-1">
               <h3 class="fw-bold mb-0">{{ $plan->name }}</h3>
               @if($plan->is_featured)
@@ -69,13 +104,22 @@
               <dt class="col-6 text-muted fw-normal small py-1">Started</dt>
               <dd class="col-6 py-1">{{ $company->subscribed_at?->format('d M Y') ?? '—' }}</dd>
 
-              <dt class="col-6 text-muted fw-normal small py-1">Next billing date</dt>
-              <dd class="col-6 py-1">
-                {{ $company->renews_at?->format('d M Y') ?? '—' }}
-                @if($company->renews_at)
-                  <small class="text-muted d-block">{{ $company->renews_at->diffForHumans() }}</small>
-                @endif
-              </dd>
+              {{-- Only while something is actually going to be charged. --}}
+              @if($company->cancels_at?->isFuture())
+                <dt class="col-6 text-muted fw-normal small py-1">Access until</dt>
+                <dd class="col-6 py-1">
+                  {{ $company->cancels_at->format('d M Y') }}
+                  <small class="text-muted d-block">{{ $company->cancels_at->diffForHumans() }}</small>
+                </dd>
+              @else
+                <dt class="col-6 text-muted fw-normal small py-1">Next billing date</dt>
+                <dd class="col-6 py-1">
+                  {{ $company->renews_at?->format('d M Y') ?? '—' }}
+                  @if($company->renews_at)
+                    <small class="text-muted d-block">{{ $company->renews_at->diffForHumans() }}</small>
+                  @endif
+                </dd>
+              @endif
             </dl>
           @else
             <div class="text-center py-4 text-muted">
@@ -100,11 +144,34 @@
             </span>
           </div>
 
-          @if($company->subscription_status === 'active' && (auth()->user()->isCompanyOwner() || auth()->user()->isAdmin()))
+          @php($endingOn = $company->cancels_at?->isFuture() ? $company->cancels_at : null)
+          @php($canManage = auth()->user()->isCompanyOwner() || auth()->user()->isAdmin())
+
+          @if($endingOn)
+            {{-- Already cancelled, but paid up to the end of the period. The
+                 Cancel button must not come back here: pressing it again sends
+                 Stripe a second cancellation it will refuse. --}}
+            <div class="alert alert-warning mb-0 py-2 px-3">
+              <i class="ti tabler-calendar-x me-1"></i>
+              Cancelled. You keep full access until
+              <strong>{{ $endingOn->format('d M Y') }}</strong>
+              ({{ $endingOn->diffForHumans() }}), then the panel becomes read-only.
+            </div>
+
+            @if($canManage)
+              <form method="POST" action="{{ route('dispatcher.subscription.resume') }}">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-label-primary">
+                  <i class="ti tabler-rotate-clockwise me-1"></i>Keep my subscription
+                </button>
+              </form>
+            @endif
+
+          @elseif($company->subscription_status === 'active' && $canManage)
             <form method="POST" action="{{ route('dispatcher.subscription.cancel') }}">
               @csrf
               <button type="submit" class="btn btn-text-danger btn-sm p-0"
-                      onclick="return confirm('Cancel the subscription? The panel becomes read-only.')">
+                      onclick="return confirm('Cancel the subscription? You keep access until the end of the period you have paid for.')">
                 Cancel subscription
               </button>
             </form>
@@ -159,7 +226,7 @@
     <div class="col-12">
       <div class="card">
         <div class="card-header">
-          <h5 class="mb-0">Available plans</h5>
+          <h5 class="mb-0" id="available-plans">Available plans</h5>
         </div>
         <div class="card-body">
           <div class="row g-4">
@@ -170,8 +237,14 @@
                   <div class="card-body d-flex flex-column">
                     <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
                       <h5 class="mb-0">{{ $option->name }}</h5>
-                      @if($current)
+                      {{-- "Current" only while it actually is. After the
+                           subscription ends it is the plan they used to be on,
+                           and leaving the badge as-is read like it was still
+                           running. --}}
+                      @if($current && $company->subscription_status === 'active')
                         <span class="badge bg-primary flex-shrink-0">Current</span>
+                      @elseif($current)
+                        <span class="badge bg-label-secondary flex-shrink-0">Previous</span>
                       @elseif($option->is_featured)
                         <span class="badge bg-label-primary flex-shrink-0">Popular</span>
                       @endif

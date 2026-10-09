@@ -53,7 +53,44 @@ class StripeService
     public function customerFor(User $company): string
     {
         if (filled($company->stripe_customer_id)) {
-            return $company->stripe_customer_id;
+            /*
+             * The stored id is trusted only as far as Stripe still honours it.
+             * A customer deleted in the Stripe dashboard keeps its id — reads
+             * succeed and come back marked deleted — but nothing can be
+             * created against it. Without this check the company could never
+             * subscribe again: every attempt failed with "Stripe could not
+             * start that subscription", and the id that caused it was never
+             * replaced, so retrying could not help.
+             */
+            try {
+                $existing = $this->client()->customers->retrieve($company->stripe_customer_id, []);
+
+                if (empty($existing->deleted)) {
+                    return $company->stripe_customer_id;
+                }
+
+                Log::info('Stripe customer was deleted; creating a replacement', [
+                    'company_id'  => $company->id,
+                    'customer_id' => $company->stripe_customer_id,
+                ]);
+            } catch (\Throwable $e) {
+                // Gone entirely, or from another account after a key change.
+                Log::warning('Stripe customer could not be read; creating a replacement', [
+                    'company_id'  => $company->id,
+                    'customer_id' => $company->stripe_customer_id,
+                    'error'       => $e->getMessage(),
+                ]);
+            }
+
+            /*
+             * The old subscription belonged to the customer that has gone, so
+             * it cannot be reused or resumed either. Clearing it keeps
+             * startSubscription from trying to update something unreachable.
+             */
+            $company->forceFill([
+                'stripe_customer_id'     => null,
+                'stripe_subscription_id' => null,
+            ])->save();
         }
 
         $customer = $this->client()->customers->create([
@@ -428,7 +465,25 @@ class StripeService
             $changes['renews_at'] = now()->setTimestamp($periodEnd)->toDateString();
         }
 
-        if ($status === 'active' && blank($company->subscribed_at)) {
+        /*
+         * When the subscription they are on today actually began.
+         *
+         * Taken from Stripe rather than stamped locally, and rewritten on
+         * every sync rather than only when empty. Writing it once meant a
+         * company that cancelled and signed up again kept the date of the
+         * subscription it had left behind — the page said "Started 29 Sep" to
+         * someone who had subscribed that morning.
+         *
+         * start_date is the beginning of this subscription, not of the current
+         * billing period, so it keeps reading as the day they signed up rather
+         * than resetting every month.
+         */
+        $startedAt = $subscription->start_date
+            ?? ($subscription->items->data[0]->current_period_start ?? null);
+
+        if ($startedAt) {
+            $changes['subscribed_at'] = now()->setTimestamp($startedAt);
+        } elseif ($status === 'active' && blank($company->subscribed_at)) {
             $changes['subscribed_at'] = now();
         }
 
@@ -499,7 +554,23 @@ class StripeService
         } catch (\Throwable $e) {
             report($e);
 
-            return null;
+            /*
+             * Stripe refuses to schedule a cancellation on a subscription that
+             * has already ended, which is the usual reason to land here: our
+             * record still says active because the webhook that would have
+             * told us never arrived. Read the truth back and store it, so the
+             * customer sees the real state instead of being told a second
+             * cancellation worked.
+             */
+            $status = $this->syncSubscriptionState($company);
+
+            if ($status === 'cancelled') {
+                return null;
+            }
+
+            throw new \RuntimeException(
+                'Stripe would not cancel this subscription. Nothing has been changed — please try again, or contact support if it keeps happening.'
+            );
         }
 
         $endsAt = $subscription->cancel_at
