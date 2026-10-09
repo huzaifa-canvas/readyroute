@@ -72,9 +72,15 @@
               <input type="file" id="profile_image" name="profile_image" class="form-control" accept="image/*" />
             </div>
 
-            <div class="col-md-12">
+            <div class="col-md-12 form-password-toggle">
               <label class="form-label" for="password">New Password <small class="text-muted">(leave blank to keep current)</small></label>
-              <input type="password" id="password" name="password" class="form-control" placeholder="············" />
+              <div class="input-group input-group-merge">
+                <input type="password" id="password" name="password" class="form-control" placeholder="············" />
+                <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                      aria-label="Show or hide the password">
+                  <i class="icon-base ti tabler-eye-off"></i>
+                </span>
+              </div>
             </div>
           </div>
           <div class="mt-6">
@@ -86,4 +92,8 @@
     </div>
   </div>
 </div>
+@endsection
+
+@section('page-script')
+@include('_partials._password-toggle')
 @endsection

@@ -59,15 +59,27 @@
                 @error('region') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
 
-              <div class="col-md-6">
+              <div class="col-md-6 form-password-toggle">
                 <label class="form-label fw-semibold" for="password">Password <span class="text-danger">*</span></label>
-                <input type="password" id="password" name="password" class="form-control @error('password') is-invalid @enderror" placeholder="Minimum 8 characters" required minlength="8" />
+                <div class="input-group input-group-merge">
+                  <input type="password" id="password" name="password" class="form-control @error('password') is-invalid @enderror" placeholder="Minimum 8 characters" required minlength="8" />
+                  <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                        aria-label="Show or hide the password">
+                    <i class="icon-base ti tabler-eye-off"></i>
+                  </span>
+                </div>
                 @error('password') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
 
-              <div class="col-md-6">
+              <div class="col-md-6 form-password-toggle">
                 <label class="form-label fw-semibold" for="password_confirmation">Confirm Password <span class="text-danger">*</span></label>
-                <input type="password" id="password_confirmation" name="password_confirmation" class="form-control" placeholder="Re-enter password" required />
+                <div class="input-group input-group-merge">
+                  <input type="password" id="password_confirmation" name="password_confirmation" class="form-control" placeholder="Re-enter password" required />
+                  <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                        aria-label="Show or hide the password">
+                    <i class="icon-base ti tabler-eye-off"></i>
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -129,4 +141,8 @@
   </div>
 
 </div>
+@endsection
+
+@section('page-script')
+@include('_partials._password-toggle')
 @endsection

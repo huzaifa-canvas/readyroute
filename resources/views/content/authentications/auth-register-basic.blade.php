@@ -23,6 +23,7 @@ $forceLightTheme = true;
 @endsection
 
 @section('page-script')
+@include('_partials._password-toggle')
 @vite(['resources/assets/js/pages-auth.js'])
 @endsection
 

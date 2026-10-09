@@ -248,15 +248,27 @@
           </select>
         </div>
         <div class="row g-3">
-          <div class="col-12 col-sm-6">
+          <div class="col-12 col-sm-6 form-password-toggle">
             <label class="form-label" for="new-password">Password <span class="text-danger">*</span></label>
-            <input type="password" id="new-password" name="password" class="form-control"
-                   autocomplete="new-password" required />
+            <div class="input-group input-group-merge">
+              <input type="password" id="new-password" name="password" class="form-control"
+                     autocomplete="new-password" required />
+              <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                    aria-label="Show or hide the password">
+                <i class="icon-base ti tabler-eye-off"></i>
+              </span>
+            </div>
           </div>
-          <div class="col-12 col-sm-6">
+          <div class="col-12 col-sm-6 form-password-toggle">
             <label class="form-label" for="new-password-confirm">Confirm</label>
-            <input type="password" id="new-password-confirm" name="password_confirmation"
-                   class="form-control" autocomplete="new-password" required />
+            <div class="input-group input-group-merge">
+              <input type="password" id="new-password-confirm" name="password_confirmation"
+                     class="form-control" autocomplete="new-password" required />
+              <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                    aria-label="Show or hide the password">
+                <i class="icon-base ti tabler-eye-off"></i>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -306,15 +318,27 @@
         <hr />
         <p class="text-muted small">Leave the password fields empty to keep the current one.</p>
         <div class="row g-3">
-          <div class="col-12 col-sm-6">
+          <div class="col-12 col-sm-6 form-password-toggle">
             <label class="form-label" for="edit-pass-{{ $user->id }}">New password</label>
-            <input type="password" id="edit-pass-{{ $user->id }}" name="password"
-                   class="form-control" autocomplete="new-password" />
+            <div class="input-group input-group-merge">
+              <input type="password" id="edit-pass-{{ $user->id }}" name="password"
+                     class="form-control" autocomplete="new-password" />
+              <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                    aria-label="Show or hide the password">
+                <i class="icon-base ti tabler-eye-off"></i>
+              </span>
+            </div>
           </div>
-          <div class="col-12 col-sm-6">
+          <div class="col-12 col-sm-6 form-password-toggle">
             <label class="form-label" for="edit-pass2-{{ $user->id }}">Confirm</label>
-            <input type="password" id="edit-pass2-{{ $user->id }}" name="password_confirmation"
-                   class="form-control" autocomplete="new-password" />
+            <div class="input-group input-group-merge">
+              <input type="password" id="edit-pass2-{{ $user->id }}" name="password_confirmation"
+                     class="form-control" autocomplete="new-password" />
+              <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                    aria-label="Show or hide the password">
+                <i class="icon-base ti tabler-eye-off"></i>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -327,4 +351,8 @@
 </div>
 @endforeach
 @endif
+@endsection
+
+@section('page-script')
+@include('_partials._password-toggle')
 @endsection

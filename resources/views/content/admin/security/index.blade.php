@@ -181,23 +181,41 @@
           <form method="POST" action="{{ route('admin.security.password') }}" class="mb-4">
             @csrf
             <div class="row g-3">
-              <div class="col-12">
+              <div class="col-12 form-password-toggle">
                 <label class="form-label" for="current_password">Current Password</label>
-                <input type="password" id="current_password" name="current_password"
-                       autocomplete="current-password"
-                       class="form-control @error('current_password') is-invalid @enderror" required />
-                @error('current_password') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                <div class="input-group input-group-merge @error('current_password') is-invalid @enderror">
+                  <input type="password" id="current_password" name="current_password"
+                         autocomplete="current-password"
+                         class="form-control @error('current_password') is-invalid @enderror" required />
+                  <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                        aria-label="Show or hide the password">
+                    <i class="icon-base ti tabler-eye-off"></i>
+                  </span>
+                </div>
+                @error('current_password') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
               </div>
-              <div class="col-12 col-sm-6">
+              <div class="col-12 col-sm-6 form-password-toggle">
                 <label class="form-label" for="password">New Password</label>
-                <input type="password" id="password" name="password" autocomplete="new-password"
-                       class="form-control @error('password') is-invalid @enderror" required />
-                @error('password') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                <div class="input-group input-group-merge">
+                  <input type="password" id="password" name="password" autocomplete="new-password"
+                         class="form-control @error('password') is-invalid @enderror" required />
+                  <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                        aria-label="Show or hide the password">
+                    <i class="icon-base ti tabler-eye-off"></i>
+                  </span>
+                </div>
+                @error('password') <div class="invalid-feedback d-block">{{ $message }}</div> @enderror
               </div>
-              <div class="col-12 col-sm-6">
+              <div class="col-12 col-sm-6 form-password-toggle">
                 <label class="form-label" for="password_confirmation">Confirm Password</label>
-                <input type="password" id="password_confirmation" name="password_confirmation"
-                       autocomplete="new-password" class="form-control" required />
+                <div class="input-group input-group-merge">
+                  <input type="password" id="password_confirmation" name="password_confirmation"
+                         autocomplete="new-password" class="form-control" required />
+                  <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                        aria-label="Show or hide the password">
+                    <i class="icon-base ti tabler-eye-off"></i>
+                  </span>
+                </div>
               </div>
               <div class="col-12">
                 <button type="submit" class="btn btn-primary">
@@ -275,6 +293,7 @@
 @endsection
 
 @section('page-script')
+@include('_partials._password-toggle')
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     const input = document.getElementById('avatar');

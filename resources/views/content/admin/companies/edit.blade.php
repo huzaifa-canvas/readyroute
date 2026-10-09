@@ -79,17 +79,29 @@
               Leave both fields empty to keep the current password unchanged.
             </p>
             <div class="row g-4">
-              <div class="col-12 col-md-6">
+              <div class="col-12 col-md-6 form-password-toggle">
                 <label class="form-label fw-semibold" for="password">New Password</label>
-                <input type="password" id="password" name="password" autocomplete="new-password"
-                       class="form-control @error('password') is-invalid @enderror"
-                       placeholder="At least 8 characters" />
+                <div class="input-group input-group-merge">
+                  <input type="password" id="password" name="password" autocomplete="new-password"
+                         class="form-control @error('password') is-invalid @enderror"
+                         placeholder="At least 8 characters" />
+                  <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                        aria-label="Show or hide the password">
+                    <i class="icon-base ti tabler-eye-off"></i>
+                  </span>
+                </div>
                 @error('password') <div class="invalid-feedback">{{ $message }}</div> @enderror
               </div>
-              <div class="col-12 col-md-6">
+              <div class="col-12 col-md-6 form-password-toggle">
                 <label class="form-label fw-semibold" for="password_confirmation">Confirm New Password</label>
-                <input type="password" id="password_confirmation" name="password_confirmation"
-                       autocomplete="new-password" class="form-control" />
+                <div class="input-group input-group-merge">
+                  <input type="password" id="password_confirmation" name="password_confirmation"
+                         autocomplete="new-password" class="form-control" />
+                  <span class="input-group-text cursor-pointer" role="button" tabindex="0"
+                        aria-label="Show or hide the password">
+                    <i class="icon-base ti tabler-eye-off"></i>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -105,4 +117,8 @@
     </div>
   </div>
 </div>
+@endsection
+
+@section('page-script')
+@include('_partials._password-toggle')
 @endsection
