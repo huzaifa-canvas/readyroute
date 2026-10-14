@@ -475,6 +475,41 @@ class User extends Authenticatable
         return $usage;
     }
 
+    /**
+     * Whether this company has room for one more of something.
+     *
+     * The subscription screen has always drawn these bars, but nothing ever
+     * stopped the count going past the line — a company on a three-vehicle
+     * tier could add thirty and only ever see a full bar. Reading the same
+     * planUsage() the bars read keeps the number that blocks you and the
+     * number you are shown from ever disagreeing.
+     *
+     * No plan means no cap: a company that has not subscribed is already
+     * read-only, and capping them again would answer the wrong question.
+     */
+    public function withinPlanLimit(string $resource): bool
+    {
+        $usage = $this->planUsage()[$resource] ?? null;
+
+        if (! $usage || $usage['limit'] === null) {
+            return true;
+        }
+
+        return $usage['used'] < $usage['limit'];
+    }
+
+    /**
+     * Why they cannot add another, in words the person can act on.
+     */
+    public function planLimitMessage(string $resource): string
+    {
+        $usage  = $this->planUsage()[$resource] ?? ['used' => 0, 'limit' => 0];
+        $plural = ['vehicle' => 'vehicles', 'driver' => 'drivers', 'trip' => 'trips this month'];
+
+        return 'Your plan covers ' . $usage['limit'] . ' ' . ($plural[$resource] ?? $resource)
+            . ' and you have ' . $usage['used'] . '. Upgrade your plan to add more.';
+    }
+
     public function dispatcher()
     {
         return $this->belongsTo(User::class, 'dispatcher_id');
@@ -630,6 +665,54 @@ class User extends Authenticatable
         $window = (int) config('readyroute.presence.offline_after_minutes', 5);
 
         return $this->last_seen_at->gt(now()->subMinutes($window));
+    }
+
+    /**
+     * The one word the driver list puts on a driver's badge.
+     *
+     * Four states, in the order they override each other: an account that has
+     * been switched off is inactive whatever else is true; a driver with a run
+     * under way is on a trip; otherwise it comes down to whether their app is
+     * connected. Working it out here keeps the panel, the API and the phone
+     * from each inventing their own version.
+     *
+     * activeTripCount can be set by a list query that already counted, so a
+     * page of drivers does not run one trip query per row.
+     */
+    public function dutyState(): string
+    {
+        if ($this->status !== 'active') {
+            return 'inactive';
+        }
+
+        $onTrip = $this->relationLoaded('activeTrips')
+            ? $this->activeTrips->isNotEmpty()
+            : ($this->active_trips_count ?? \App\Models\Trip::forDriver($this->id)->active()->count()) > 0;
+
+        if ($onTrip) {
+            return 'on_trip';
+        }
+
+        return $this->isCurrentlyOnline() ? 'active' : 'off_duty';
+    }
+
+    public function dutyLabel(): string
+    {
+        return match ($this->dutyState()) {
+            'on_trip'  => 'On Trip',
+            'active'   => 'Active',
+            'off_duty' => 'Off Duty',
+            default    => 'Inactive',
+        };
+    }
+
+    /**
+     * Runs this driver has under way. Used as a counted relation so a list can
+     * resolve dutyState() for every row in one extra query.
+     */
+    public function activeTrips()
+    {
+        return $this->hasMany(Trip::class, 'driver_id')->active();
     }
 
     /**

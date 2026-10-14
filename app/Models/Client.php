@@ -50,6 +50,15 @@ class Client extends Model
         return $this->hasMany(ClientNote::class)->orderByDesc('created_at');
     }
 
+    /**
+     * Every ride booked for this client. Counted on the list so a profile can
+     * show "12 trips" without a query per row.
+     */
+    public function trips()
+    {
+        return $this->hasMany(Trip::class);
+    }
+
     public function driverVisibleNotes()
     {
         return $this->hasMany(ClientNote::class)

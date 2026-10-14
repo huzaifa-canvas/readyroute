@@ -35,6 +35,21 @@ class EnsureActiveSubscription
         'dispatcher.profile.password',
         'dispatcher.profile.2fa',
         'logout',
+
+        // The same way back for the mobile app. These are the API's own
+        // route names, so a company whose plan has lapsed can still pay from
+        // the phone instead of being told to go and find a computer.
+        'api.dispatcher.subscription',
+        'api.dispatcher.subscription.checkout',
+        'api.dispatcher.subscription.confirm',
+        'api.dispatcher.subscription.cancel',
+        'api.dispatcher.subscription.resume',
+        'api.dispatcher.subscription.plan-change.cancel',
+        'api.dispatcher.profile.update',
+        'api.dispatcher.profile.password',
+        'api.dispatcher.profile.2fa',
+        'api.dispatcher.device-token',
+        'api.dispatcher.logout',
     ];
 
     public function handle(Request $request, Closure $next): Response

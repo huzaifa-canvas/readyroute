@@ -17,7 +17,7 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     Route::get('driver/list', [DriverController::class, 'index'])->middleware('plan:drivers')->middleware('permission:drivers.view')->name('dispatcher.driver.list');
     Route::get('driver/create', [DriverController::class, 'create'])->middleware('plan:drivers')->middleware('permission:drivers.manage')->name('dispatcher.driver.create');
     Route::get('driver/{id}', [DriverController::class, 'show'])->whereNumber('id')->middleware('plan:drivers')->middleware('permission:drivers.view')->name('dispatcher.driver.show');
-    Route::post('driver/store', [DriverController::class, 'store'])->middleware('plan:drivers')->middleware('permission:drivers.manage')->name('dispatcher.driver.store');
+    Route::post('driver/store', [DriverController::class, 'store'])->middleware('plan:drivers')->middleware('permission:drivers.manage')->middleware('limit:driver')->name('dispatcher.driver.store');
     Route::get('driver/edit/{id}', [DriverController::class, 'edit'])->middleware('plan:drivers')->middleware('permission:drivers.manage')->name('dispatcher.driver.edit');
     Route::put('driver/update/{id}', [DriverController::class, 'update'])->middleware('plan:drivers')->middleware('permission:drivers.manage')->name('dispatcher.driver.update');
     Route::delete('driver/delete/{id}', [DriverController::class, 'destroy'])->middleware('plan:drivers')->middleware('permission:drivers.manage')->name('dispatcher.driver.delete');
@@ -25,7 +25,7 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     // Trip Management
     Route::get('trip/list', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'index'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.list');
     Route::get('trip/create', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'create'])->middleware('plan:trips')->middleware('permission:trips.create')->name('dispatcher.trip.create');
-    Route::post('trip/store', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'store'])->middleware('plan:trips')->middleware('permission:trips.create')->name('dispatcher.trip.store');
+    Route::post('trip/store', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'store'])->middleware('plan:trips')->middleware('permission:trips.create')->middleware('limit:trip')->name('dispatcher.trip.store');
     Route::get('trip/driver-load', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'driverLoad'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.driver-load');
     Route::get('trip/calendar', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'calendar'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.calendar');
     Route::get('trip/events', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'events'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.events');
@@ -51,7 +51,7 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     // Fleet Management (Vehicle Management System)
     Route::get('fleet', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'index'])->middleware('plan:fleet')->middleware('permission:fleet.view')->name('dispatcher.fleet.index');
     Route::get('fleet/create', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'create'])->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.create');
-    Route::post('fleet/store', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'store'])->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.store');
+    Route::post('fleet/store', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'store'])->middleware('plan:fleet')->middleware('permission:fleet.manage')->middleware('limit:vehicle')->name('dispatcher.fleet.store');
     Route::get('fleet/edit/{id}', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'edit'])->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.edit');
     Route::put('fleet/update/{id}', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'update'])->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.update');
     Route::delete('fleet/delete/{id}', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'destroy'])->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.delete');

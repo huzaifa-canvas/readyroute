@@ -8,6 +8,7 @@ use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\EnsureActiveSubscription;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsurePlanFeature;
+use App\Http\Middleware\EnsurePlanLimit;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\VerifySocketSecret;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -33,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role'          => RoleMiddleware::class,
             'permission'    => EnsurePermission::class,
             'plan'          => EnsurePlanFeature::class,
+            'limit'         => EnsurePlanLimit::class,
             'subscribed'    => EnsureActiveSubscription::class,
             'socket.secret' => VerifySocketSecret::class,
         ]);
