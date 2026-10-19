@@ -101,15 +101,37 @@ class User extends Authenticatable
 
     public static function nextDriverCode(): string
     {
-        $lastNumber = static::whereNotNull('driver_code')
-            ->orderByDesc('id')
-            ->value('driver_code');
+        /*
+         * Two things this has to get right, and used to get wrong.
+         *
+         * A soft-deleted driver still holds its code in the unique index, so
+         * trashed rows have to be counted. Reading only the live ones meant
+         * that deleting a driver broke the very next creation, permanently:
+         * the query handed back the code below the deleted one and the insert
+         * collided with a row nobody could see.
+         *
+         * And the newest row is not the highest code. Ordering by id assumes
+         * codes were only ever handed out in insert order, which stops being
+         * true the moment one is imported or set by hand.
+         */
+        $taken = static::withTrashed()
+            ->whereNotNull('driver_code')
+            ->pluck('driver_code');
 
-        $next = $lastNumber
-            ? ((int) preg_replace('/\D/', '', $lastNumber)) + 1
-            : 1;
+        $highest = (int) $taken
+            ->map(fn (string $code) => (int) preg_replace('/\D/', '', $code))
+            ->max();
 
-        return 'DRV-' . str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+        $next  = $highest + 1;
+        $codes = $taken->flip();
+
+        // max + 1 is normally free. The loop only matters when a code was
+        // written in some other shape, which would otherwise collide again.
+        while ($codes->has($code = 'DRV-' . str_pad((string) $next, 4, '0', STR_PAD_LEFT))) {
+            $next++;
+        }
+
+        return $code;
     }
 
     /**
