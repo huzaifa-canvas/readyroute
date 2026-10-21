@@ -28,6 +28,23 @@ class AuthController extends BaseDriverController
             return $this->forbidden('This app is for drivers. Please use the web panel to sign in.');
         }
 
+        /*
+         * A deactivated driver cannot sign in.
+         *
+         * Suspending already revokes the tokens they were holding, which ends
+         * any session open at the time; this is the other half, and without it
+         * the account could simply sign in again a second later. The reason is
+         * returned when the office recorded one, because "contact your
+         * dispatcher" with no explanation is what makes someone keep retrying.
+         */
+        if ($user->isSuspended()) {
+            return $this->forbidden(
+                $user->suspension_reason
+                    ? 'This account has been deactivated: ' . $user->suspension_reason
+                    : 'This account has been deactivated. Contact your dispatcher.'
+            );
+        }
+
         if ($request->filled('device_token')) {
             $user->device_token = $request->device_token;
         }

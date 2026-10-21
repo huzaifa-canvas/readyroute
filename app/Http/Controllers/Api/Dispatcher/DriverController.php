@@ -366,4 +366,115 @@ class DriverController extends BaseDispatcherController
             'internal_notes'        => $request->input('internal_notes'),
         ];
     }
+
+    // ── Switching a driver off ───────────────────────────────────────
+
+    /**
+     * Deactivate a driver without deleting them.
+     *
+     * Deleting loses the history; deactivating keeps the account and its
+     * record while stopping the person working. They cannot sign in to the
+     * driver app afterwards, and the tokens they were holding are revoked, so
+     * a session open at the time ends too.
+     *
+     * Work has to be moved first. A driver who cannot sign in but is still
+     * named on a run leaves that run in limbo: nobody is driving it, and
+     * nothing on the board says so. Both a trip under way and a booking two
+     * weeks out count, because neither has a driver once this is done — and
+     * the refusal lists them, so the app can send the dispatcher straight to
+     * the work rather than leaving them to find it.
+     */
+    public function deactivate(Request $request, int $id): JsonResponse
+    {
+        $driver = $this->drivers()->find($id);
+
+        if (! $driver) {
+            return $this->notFound('Driver not found.');
+        }
+
+        $request->validate([
+            'suspension_reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if ($driver->isSuspended()) {
+            return $this->fail($driver->name . ' is already deactivated.', 422);
+        }
+
+        $blocking = $driver->tripsBlockingDeactivation()
+            ->with('client')
+            ->orderBy('pickup_date')
+            ->get();
+
+        if ($blocking->isNotEmpty()) {
+            return response()->json([
+                'status'  => false,
+                'message' => sprintf(
+                    '%s still has %d %s assigned. Reassign or cancel %s before deactivating them.',
+                    $driver->name,
+                    $blocking->count(),
+                    \Illuminate\Support\Str::plural('trip', $blocking->count()),
+                    $blocking->count() === 1 ? 'it' : 'them'
+                ),
+                'data' => [
+                    'blocking_trips' => TripListResource::collection($blocking),
+                    'blocking_count' => $blocking->count(),
+                ],
+                'errors' => null,
+            ], 422);
+        }
+
+        $driver->suspend($request->input('suspension_reason'));
+
+        return $this->ok(
+            new DriverResource($driver->fresh()->load(['metas', 'assignedVehicle'])),
+            $driver->name . ' has been deactivated and can no longer sign in to the driver app.'
+        );
+    }
+
+    public function reactivate(int $id): JsonResponse
+    {
+        $driver = $this->drivers()->find($id);
+
+        if (! $driver) {
+            return $this->notFound('Driver not found.');
+        }
+
+        if (! $driver->isSuspended()) {
+            return $this->fail($driver->name . ' is already active.', 422);
+        }
+
+        $driver->activate();
+
+        return $this->ok(
+            new DriverResource($driver->fresh()->load(['metas', 'assignedVehicle'])),
+            $driver->name . ' can sign in again.'
+        );
+    }
+
+    /**
+     * What stands in the way of deactivating this driver.
+     *
+     * Asked before showing the button, so the app can grey it out and say why
+     * instead of offering an action that will be refused.
+     */
+    public function blockingTrips(int $id): JsonResponse
+    {
+        $driver = $this->drivers()->find($id);
+
+        if (! $driver) {
+            return $this->notFound('Driver not found.');
+        }
+
+        $blocking = $driver->tripsBlockingDeactivation()
+            ->with(['client', 'driver', 'vehicle'])
+            ->orderBy('pickup_date')
+            ->orderBy('pickup_time')
+            ->get();
+
+        return $this->ok([
+            'can_deactivate' => $blocking->isEmpty(),
+            'blocking_count' => $blocking->count(),
+            'blocking_trips' => TripListResource::collection($blocking),
+        ]);
+    }
 }

@@ -107,6 +107,13 @@ Route::prefix('dispatcher')->group(function () {
             // does not survive a PUT in most mobile HTTP clients.
             Route::post('/drivers/{id}', [DriverController::class, 'update'])->whereNumber('id')->middleware('permission:drivers.manage');
             Route::delete('/drivers/{id}', [DriverController::class, 'destroy'])->whereNumber('id')->middleware('permission:drivers.manage');
+
+            // Switch a driver off without losing their record. Their work has
+            // to be moved first; the refusal lists what is in the way, so the
+            // app can send the dispatcher straight to it.
+            Route::get('/drivers/{id}/blocking-trips', [DriverController::class, 'blockingTrips'])->whereNumber('id')->middleware('permission:drivers.view');
+            Route::post('/drivers/{id}/deactivate', [DriverController::class, 'deactivate'])->whereNumber('id')->middleware('permission:drivers.manage');
+            Route::post('/drivers/{id}/activate', [DriverController::class, 'reactivate'])->whereNumber('id')->middleware('permission:drivers.manage');
         });
 
         // ── Vehicles ──────────────────────────────
@@ -116,6 +123,16 @@ Route::prefix('dispatcher')->group(function () {
             Route::get('/vehicles/{id}', [VehicleController::class, 'show'])->whereNumber('id')->middleware('permission:fleet.view');
             Route::post('/vehicles/{id}', [VehicleController::class, 'update'])->whereNumber('id')->middleware('permission:fleet.manage');
             Route::delete('/vehicles/{id}', [VehicleController::class, 'destroy'])->whereNumber('id')->middleware('permission:fleet.manage');
+
+            // Service history, and the drivers' pre-trip checks, per vehicle.
+            Route::get('/vehicles/{id}/maintenance', [VehicleController::class, 'maintenance'])->whereNumber('id')->middleware('permission:fleet.view');
+            Route::post('/vehicles/{id}/maintenance', [VehicleController::class, 'storeMaintenance'])->whereNumber('id')->middleware('permission:fleet.manage');
+            Route::put('/vehicles/{id}/maintenance/{logId}', [VehicleController::class, 'updateMaintenance'])->whereNumber('id')->whereNumber('logId')->middleware('permission:fleet.manage');
+            Route::delete('/vehicles/{id}/maintenance/{logId}', [VehicleController::class, 'destroyMaintenance'])->whereNumber('id')->whereNumber('logId')->middleware('permission:fleet.manage');
+
+            // Read-only: a signed check is the driver's record, not the
+            // office's to amend.
+            Route::get('/vehicles/{id}/inspections', [VehicleController::class, 'inspections'])->whereNumber('id')->middleware('permission:fleet.view');
         });
 
         // ── Clients ───────────────────────────────

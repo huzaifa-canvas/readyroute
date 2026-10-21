@@ -23,6 +23,23 @@ class InspectionResponse extends Model
         'checked_at' => 'datetime',
     ];
 
+    /**
+     * Whether the driver reported a fault on this item.
+     *
+     * Here rather than compared against a string at each call site: the enum
+     * case is `fail`, and code that guessed `defect` compiled perfectly and
+     * quietly reported that nothing was ever wrong.
+     */
+    public function isDefect(): bool
+    {
+        return $this->status === InspectionItemStatus::Fail;
+    }
+
+    public function isPass(): bool
+    {
+        return $this->status === InspectionItemStatus::Pass;
+    }
+
     public function inspection()
     {
         return $this->belongsTo(VehicleInspection::class, 'vehicle_inspection_id');

@@ -40,8 +40,9 @@
           <th>Available</th>
           <th>Phone</th>
           <th>License #</th>
-          <th>CDL Class</th>
-          <th>Actions</th>
+          <th class="text-center">Trips</th>
+          <th>Status</th>
+          <th class="text-end">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -54,7 +55,9 @@
                 <img src="{{ $driver->avatar_url }}" alt="Avatar" class="rounded-circle" />
               </div>
               <div>
-                <span class="fw-medium d-block">{{ $driver->name }}</span>
+                <span class="fw-medium d-block {{ $driver->isSuspended() ? 'text-muted' : '' }}">
+                  {{ $driver->name }}
+                </span>
                 <small class="text-muted">{{ $driver->email }}</small>
               </div>
             </div>
@@ -91,17 +94,84 @@
           </td>
           <td>{{ $driver->phone_number ?? '-' }}</td>
           <td>{{ $driver->getMeta('driver_license_number', '-') }}</td>
-          <td>{{ $driver->getMeta('cdl_class', '-') }}</td>
-          <td>
-            <div class="d-flex gap-1">
-              <a href="{{ route('dispatcher.driver.edit', $driver->id) }}" class="btn btn-icon btn-text-primary btn-sm" title="Edit Driver">
-                <i class="icon-base ti tabler-edit icon-md"></i>
+          <td class="text-center">
+            {{-- Work currently on their plate, which is also what decides
+                 whether they can be deactivated. Linked, because the next
+                 thing anyone wants after seeing a number is the list behind
+                 it. --}}
+            @if($driver->active_trips_count > 0)
+              <a href="{{ route('dispatcher.trip.list', ['driver_id' => $driver->id]) }}"
+                 class="badge bg-label-info text-decoration-none"
+                 title="{{ $driver->active_trips_count }} {{ \Illuminate\Support\Str::plural('trip', $driver->active_trips_count) }} assigned. Open the list.">
+                {{ $driver->active_trips_count }}
               </a>
+            @else
+              <span class="text-muted">&mdash;</span>
+            @endif
+          </td>
+          <td>
+            @if($driver->isSuspended())
+              <span class="badge bg-danger">
+                <i class="icon-base ti tabler-user-off icon-xs me-1"></i>Deactivated
+              </span>
+              @if($driver->suspension_reason)
+                <small class="text-muted d-block mt-1" style="max-width: 180px;">{{ $driver->suspension_reason }}</small>
+              @endif
+            @else
+              <span class="badge bg-label-success">
+                <i class="icon-base ti tabler-user-check icon-xs me-1"></i>Active
+              </span>
+            @endif
+          </td>
+          <td class="text-end">
+            <div class="d-flex gap-1 justify-content-end align-items-center">
+              <a href="{{ route('dispatcher.driver.edit', $driver->id) }}"
+                 class="btn btn-icon btn-sm btn-label-primary" title="Edit driver">
+                <i class="icon-base ti tabler-edit"></i>
+              </a>
+
+              {{-- Always in the same place, and never hidden or greyed when the
+                   driver still has work: a control that silently does nothing
+                   teaches nobody why. It opens and says what has to happen
+                   first instead. Which state the row is in is read from the
+                   Status column, so the button only needs its tooltip. --}}
+              @if($driver->isSuspended())
+                <form action="{{ route('dispatcher.driver.activate', $driver->id) }}" method="POST" class="d-inline">
+                  @csrf
+                  <button type="submit" class="btn btn-icon btn-sm btn-label-success"
+                          title="Reactivate {{ $driver->name }}"
+                          onclick="return confirm('Reactivate {{ $driver->name }}? They will be able to sign in to the driver app again.')">
+                    <i class="icon-base ti tabler-user-check"></i>
+                  </button>
+                </form>
+              @elseif($driver->active_trips_count > 0)
+                <button type="button" class="btn btn-icon btn-sm btn-label-warning"
+                        title="Deactivate {{ $driver->name }}"
+                        data-bs-toggle="modal" data-bs-target="#blockedModal"
+                        onclick="rrBlocked(this)"
+                        data-name="{{ $driver->name }}"
+                        data-count="{{ $driver->active_trips_count }}"
+                        data-trips="{{ route('dispatcher.trip.list', ['driver_id' => $driver->id]) }}">
+                  <i class="icon-base ti tabler-user-off"></i>
+                </button>
+              @else
+                <button type="button" class="btn btn-icon btn-sm btn-label-warning"
+                        title="Deactivate {{ $driver->name }}"
+                        data-bs-toggle="modal" data-bs-target="#deactivateModal"
+                        onclick="rrDeactivate(this)"
+                        data-id="{{ $driver->id }}"
+                        data-name="{{ $driver->name }}">
+                  <i class="icon-base ti tabler-user-off"></i>
+                </button>
+              @endif
+
               <form action="{{ route('dispatcher.driver.delete', $driver->id) }}" method="POST" class="d-inline">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="btn btn-icon btn-text-danger btn-sm" onclick="return confirm('Are you sure you want to delete this driver?')" title="Delete Driver">
-                  <i class="icon-base ti tabler-trash icon-md"></i>
+                <button type="submit" class="btn btn-icon btn-sm btn-label-danger"
+                        title="Delete driver"
+                        onclick="return confirm('Are you sure you want to delete this driver?')">
+                  <i class="icon-base ti tabler-trash"></i>
                 </button>
               </form>
             </div>
@@ -109,7 +179,7 @@
         </tr>
         @empty
         <tr>
-          <td colspan="8" class="text-center py-4 text-muted">No drivers found. Click "Add New Driver" to create one.</td>
+          <td colspan="9" class="text-center py-4 text-muted">No drivers found. Click "Add New Driver" to create one.</td>
         </tr>
         @endforelse
       </tbody>
@@ -122,4 +192,98 @@
   </div>
   @endif
 </div>
+
+
+{{-- Why the driver cannot be switched off, and the way to fix it.
+     This was a tooltip on an icon that looked almost the same as the one next
+     to it, so the reason was effectively invisible and clicking jumped
+     somewhere unexplained. --}}
+<div class="modal fade" id="blockedModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="icon-base ti tabler-alert-triangle text-warning me-1"></i>
+          Reassign <span id="blockedName"></span>'s trips first
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <p class="mb-3">
+          <strong id="blockedName2"></strong> still has
+          <strong><span id="blockedCount"></span></strong> assigned.
+        </p>
+        <p class="text-muted small mb-0">
+          A driver who cannot sign in but is still named on a run leaves that run with nobody
+          driving it, and nothing on the board saying so. Move those trips to another driver, or
+          cancel them, and the driver can then be deactivated.
+        </p>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Close</button>
+        <a href="#" class="btn btn-primary" id="blockedTripsLink">
+          <i class="icon-base ti tabler-route icon-xs me-1"></i>Open their trips
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{-- Deactivating asks for a reason, because the driver is shown it when they
+     next try to sign in, and "contact your dispatcher" with no explanation is
+     what makes someone keep retrying. --}}
+<div class="modal fade" id="deactivateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="POST" id="deactivateForm">
+      @csrf
+      <div class="modal-header">
+        <h5 class="modal-title">Deactivate <span id="deactivateName"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body">
+        <p class="text-muted small">
+          They will not be able to sign in to the driver app, and any session they have open now
+          will end. Their record and trip history are kept, and you can reactivate them at any time.
+        </p>
+
+        <label class="form-label" for="deactivate-reason">Reason <span class="text-muted">(optional)</span></label>
+        <input type="text" class="form-control" id="deactivate-reason" name="suspension_reason"
+               maxlength="255" placeholder="e.g. Licence expired, on leave until March">
+        <small class="text-muted">Shown to the driver when they try to sign in.</small>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-label-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-warning">Deactivate</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+@endsection
+
+@section('page-script')
+<script>
+  const rrDeactivateBase = @json(url('dispatcher/driver'));
+
+  function rrDeactivate(button) {
+    document.getElementById('deactivateName').textContent = button.dataset.name;
+    document.getElementById('deactivate-reason').value = '';
+    document.getElementById('deactivateForm').action =
+      rrDeactivateBase + '/' + button.dataset.id + '/deactivate';
+  }
+
+  function rrBlocked(button) {
+    const count = Number(button.dataset.count);
+
+    document.getElementById('blockedName').textContent = button.dataset.name;
+    document.getElementById('blockedName2').textContent = button.dataset.name;
+    document.getElementById('blockedCount').textContent =
+      count + (count === 1 ? ' trip' : ' trips');
+    document.getElementById('blockedTripsLink').href = button.dataset.trips;
+  }
+</script>
 @endsection

@@ -204,6 +204,31 @@ class User extends Authenticatable
         ])->save();
     }
 
+    /**
+     * The trips that stand in the way of deactivating this driver.
+     *
+     * Deactivating is not the same as deleting: the account stays, so its
+     * history stays with it. What must not stay is work. A driver who cannot
+     * sign in but is still named on a run leaves that run in limbo — nobody is
+     * driving it and nothing on the board says so.
+     *
+     * Everything still on their plate counts, a booking two weeks out as much
+     * as a trip under way: both need a driver, and neither has one once this
+     * account is switched off.
+     */
+    public function tripsBlockingDeactivation(): \Illuminate\Database\Eloquent\Builder
+    {
+        return Trip::query()->forDriver($this->id)->active();
+    }
+
+    /**
+     * Whether this driver can be switched off right now.
+     */
+    public function canBeDeactivated(): bool
+    {
+        return $this->tripsBlockingDeactivation()->doesntExist();
+    }
+
     public function statusLabel(): string
     {
         return $this->isSuspended() ? 'Suspended' : 'Active';

@@ -32,6 +32,31 @@
     </div>
   @endif
 
+  {{-- A deactivated account looked exactly like a working one here, one click
+       in from the list where it is now obvious. Said at the top, with the way
+       back, because this is the page somebody opens to find out why a driver
+       is not working. --}}
+  @if($driver->isSuspended())
+    <div class="alert alert-danger d-flex flex-wrap align-items-center justify-content-between gap-2" role="alert">
+      <span>
+        <i class="ti tabler-user-off me-2"></i>
+        <strong>This driver is deactivated</strong> and cannot sign in to the driver app.
+        @if($driver->suspension_reason)
+          &mdash; {{ $driver->suspension_reason }}
+        @endif
+      </span>
+      @if(auth()->user()->hasPermission('drivers.manage'))
+        <form action="{{ route('dispatcher.driver.activate', $driver->id) }}" method="POST">
+          @csrf
+          <button type="submit" class="btn btn-sm btn-label-success"
+                  onclick="return confirm('Reactivate {{ $driver->name }}? They will be able to sign in to the driver app again.')">
+            <i class="ti tabler-user-check icon-xs me-1"></i>Reactivate
+          </button>
+        </form>
+      @endif
+    </div>
+  @endif
+
   {{-- Header --}}
   <div class="card mb-4">
     <div class="card-body">

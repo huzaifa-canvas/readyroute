@@ -98,9 +98,35 @@
           @endif
         </div>
         
-        <div class="d-flex justify-content-between align-items-center mt-5">
+        {{-- What is outstanding on this vehicle, so the card answers it
+             without anyone opening the history. --}}
+        @if($vehicle->open_maintenance_count)
+          <div class="alert alert-warning d-flex align-items-center gap-2 py-2 px-3 mb-3">
+            <i class="ti tabler-tool flex-shrink-0"></i>
+            <span class="small">
+              {{ $vehicle->open_maintenance_count }}
+              {{ \Illuminate\Support\Str::plural('job', $vehicle->open_maintenance_count) }} outstanding
+            </span>
+          </div>
+        @endif
+
+        <div class="d-flex gap-2 w-100 mt-4">
+          <a href="{{ route('dispatcher.fleet.maintenance', $vehicle->id) }}"
+             class="btn btn-outline-primary flex-grow-1" style="flex-basis: 50%;">
+            <i class="ti tabler-tool icon-xs me-1"></i>Maintenance
+          </a>
+          <a href="{{ route('dispatcher.fleet.inspections', $vehicle->id) }}"
+             class="btn btn-outline-primary flex-grow-1" style="flex-basis: 50%;">
+            <i class="ti tabler-clipboard-check icon-xs me-1"></i>Inspections
+            @if($vehicle->inspections_count)
+              <span class="badge bg-label-secondary ms-1">{{ $vehicle->inspections_count }}</span>
+            @endif
+          </a>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-2">
           <div class="d-flex gap-2 w-100">
-            <a href="{{ route('dispatcher.fleet.edit', $vehicle->id) }}" class="btn btn-outline-primary flex-grow-1" style="flex-basis: 50%;">Edit</a>
+            <a href="{{ route('dispatcher.fleet.edit', $vehicle->id) }}" class="btn btn-outline-secondary flex-grow-1" style="flex-basis: 50%;">Edit</a>
             @if($vehicle->vin_number)
             <button type="button" class="btn btn-outline-secondary flex-grow-1" style="flex-basis: 50%;" onclick="alert('VIN Number: {{ $vehicle->vin_number }}')" title="View VIN">
               View VIN

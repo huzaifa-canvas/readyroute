@@ -32,6 +32,12 @@ class VehicleResource extends JsonResource
             'assigned_driver_id' => $this->assigned_driver_id,
             'is_assigned'        => $this->assigned_driver_id !== null,
 
+            // Only present when the query counted them, which the list does.
+            // A card uses these to say whether the vehicle is waiting on
+            // something, without a request per row.
+            'open_maintenance_count' => $this->whenCounted('openMaintenance'),
+            'inspections_count'      => $this->whenCounted('inspections'),
+
             'created_at' => optional($this->created_at)->toIso8601String(),
         ];
     }

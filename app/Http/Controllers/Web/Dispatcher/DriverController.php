@@ -26,6 +26,9 @@ class DriverController extends Controller
             // Eager loaded, or the list would run a query per driver for a
             // column that is on every row.
             ->with(['metas', 'assignedVehicle'])
+            // Counted here so each row can say whether the driver still has
+            // work on their plate, without a query per card.
+            ->withCount('activeTrips')
             ->latest()
             ->paginate(15);
 
@@ -311,5 +314,102 @@ class DriverController extends Controller
         $driver->delete();
 
         return redirect()->back()->with('success', 'Driver deleted successfully.');
+    }
+
+    /**
+     * Switch a driver off without deleting them.
+     *
+     * Deleting loses the history; deactivating keeps the account and its
+     * record while stopping the person working. They cannot sign in to the
+     * driver app afterwards, and the tokens they were holding are revoked, so
+     * a session open at the time ends too.
+     *
+     * Work has to be moved first. A driver who cannot sign in but is still
+     * named on a run leaves that run in limbo: nobody is driving it, and
+     * nothing on the board says so. Both a trip under way and a booking two
+     * weeks out count, because neither has a driver once this is done.
+     */
+    public function deactivate(Request $request, $id)
+    {
+        $driver = $this->findDriver($id);
+
+        $request->validate([
+            'suspension_reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        if ($driver->isSuspended()) {
+            return back()->with('error', $driver->name . ' is already deactivated.');
+        }
+
+        $blocking = $driver->tripsBlockingDeactivation()->count();
+
+        if ($blocking > 0) {
+            return back()->with('error', sprintf(
+                '%s still has %d %s assigned. Reassign or cancel %s before deactivating them.',
+                $driver->name,
+                $blocking,
+                \Illuminate\Support\Str::plural('trip', $blocking),
+                $blocking === 1 ? 'it' : 'them'
+            ));
+        }
+
+        $driver->suspend($request->input('suspension_reason'));
+
+        return back()->with('success', $driver->name
+            . ' has been deactivated and can no longer sign in to the driver app.');
+    }
+
+    public function reactivate($id)
+    {
+        $driver = $this->findDriver($id);
+
+        if (! $driver->isSuspended()) {
+            return back()->with('error', $driver->name . ' is already active.');
+        }
+
+        $driver->activate();
+
+        return back()->with('success', $driver->name . ' can sign in again.');
+    }
+
+    /**
+     * The trips standing in the way, so the office can go and move them.
+     */
+    public function blockingTrips($id)
+    {
+        $driver = $this->findDriver($id);
+
+        return response()->json([
+            'status' => true,
+            'data'   => [
+                'driver' => ['id' => $driver->id, 'name' => $driver->name],
+                'count'  => $driver->tripsBlockingDeactivation()->count(),
+                'trips'  => $driver->tripsBlockingDeactivation()
+                    ->with('client')
+                    ->orderBy('pickup_date')
+                    ->limit(50)
+                    ->get()
+                    ->map(fn ($trip) => [
+                        'id'        => $trip->id,
+                        'reference' => $trip->reference(),
+                        'passenger' => $trip->passengerName(),
+                        'date'      => optional($trip->pickup_date)->toDateString(),
+                        'time'      => $trip->pickup_time,
+                        'status'    => $trip->statusEnum()?->label(),
+                        'url'       => route('dispatcher.trip.details', $trip->id),
+                    ]),
+            ],
+        ]);
+    }
+
+    /**
+     * Drivers are always reached through the signed-in user's company, so a
+     * mistyped id cannot touch another tenant's staff.
+     */
+    private function findDriver($id): User
+    {
+        return User::where('role', 'driver')
+            ->where('dispatcher_id', auth()->user()->companyId())
+            ->findOrFail($id);
     }
 }

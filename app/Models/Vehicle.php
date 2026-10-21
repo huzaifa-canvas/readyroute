@@ -52,6 +52,27 @@ class Vehicle extends Model
     }
 
     /**
+     * Service and repair history, newest first.
+     */
+    public function maintenanceLogs()
+    {
+        return $this->hasMany(VehicleMaintenanceLog::class)
+            ->orderByRaw('COALESCE(performed_on, due_on) DESC')
+            ->orderByDesc('id');
+    }
+
+    /**
+     * Work still owed on this vehicle.
+     *
+     * Counted on the fleet list so each card can say whether the vehicle is
+     * waiting on something, without a query per card.
+     */
+    public function openMaintenance()
+    {
+        return $this->hasMany(VehicleMaintenanceLog::class)->open();
+    }
+
+    /**
      * How the vehicle is named to a driver, e.g. "V-204 - Ford Transit".
      */
     public function displayLabel(): string

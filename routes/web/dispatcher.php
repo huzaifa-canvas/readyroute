@@ -22,6 +22,12 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     Route::put('driver/update/{id}', [DriverController::class, 'update'])->middleware('plan:drivers')->middleware('permission:drivers.manage')->name('dispatcher.driver.update');
     Route::delete('driver/delete/{id}', [DriverController::class, 'destroy'])->middleware('plan:drivers')->middleware('permission:drivers.manage')->name('dispatcher.driver.delete');
 
+    // Switch a driver off without losing their record. Their work has to be
+    // moved first, which the controller enforces.
+    Route::post('driver/{id}/deactivate', [DriverController::class, 'deactivate'])->whereNumber('id')->middleware('plan:drivers')->middleware('permission:drivers.manage')->name('dispatcher.driver.deactivate');
+    Route::post('driver/{id}/activate', [DriverController::class, 'reactivate'])->whereNumber('id')->middleware('plan:drivers')->middleware('permission:drivers.manage')->name('dispatcher.driver.activate');
+    Route::get('driver/{id}/blocking-trips', [DriverController::class, 'blockingTrips'])->whereNumber('id')->middleware('plan:drivers')->middleware('permission:drivers.view')->name('dispatcher.driver.blocking-trips');
+
     // Trip Management
     Route::get('trip/list', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'index'])->middleware('plan:trips')->middleware('permission:trips.view')->name('dispatcher.trip.list');
     Route::get('trip/create', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'create'])->middleware('plan:trips')->middleware('permission:trips.create')->name('dispatcher.trip.create');
@@ -55,6 +61,15 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     Route::get('fleet/edit/{id}', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'edit'])->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.edit');
     Route::put('fleet/update/{id}', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'update'])->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.update');
     Route::delete('fleet/delete/{id}', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'destroy'])->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.delete');
+
+    // Service history and the drivers' pre-trip checks, per vehicle. Both are
+    // reached from a button on the vehicle's card.
+    Route::get('fleet/{id}/maintenance', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'maintenance'])->whereNumber('id')->middleware('plan:fleet')->middleware('permission:fleet.view')->name('dispatcher.fleet.maintenance');
+    Route::post('fleet/{id}/maintenance', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'storeMaintenance'])->whereNumber('id')->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.maintenance.store');
+    Route::put('fleet/{id}/maintenance/{logId}', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'updateMaintenance'])->whereNumber('id')->whereNumber('logId')->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.maintenance.update');
+    Route::delete('fleet/{id}/maintenance/{logId}', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'destroyMaintenance'])->whereNumber('id')->whereNumber('logId')->middleware('plan:fleet')->middleware('permission:fleet.manage')->name('dispatcher.fleet.maintenance.delete');
+
+    Route::get('fleet/{id}/inspections', [App\Http\Controllers\Web\Dispatcher\FleetController::class, 'inspections'])->whereNumber('id')->middleware('plan:fleet')->middleware('permission:fleet.view')->name('dispatcher.fleet.inspections');
     // Client Management
     Route::get('client', [App\Http\Controllers\Web\Dispatcher\ClientController::class, 'index'])->middleware('plan:clients')->middleware('permission:clients.view')->name('dispatcher.client.index');
     Route::get('client/create', [App\Http\Controllers\Web\Dispatcher\ClientController::class, 'create'])->middleware('plan:clients')->middleware('permission:clients.manage')->name('dispatcher.client.create');

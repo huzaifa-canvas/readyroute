@@ -169,11 +169,11 @@ class TripController extends BaseDispatcherController
                     'date'         => optional($record->inspection_date)->toDateString(),
                     'vehicle'      => $record->vehicle?->name,
                     'status'       => $record->status,
-                    'has_defects'  => $record->responses->contains(fn ($row) => $row->is_defect),
+                    'has_defects'  => $record->responses->contains(fn ($row) => $row->isDefect()),
                     'signature_url' => $signatures->temporaryUrl($record->signature_path),
                     'items' => $record->responses->map(fn ($response) => [
                         'label'     => $response->item?->label,
-                        'is_defect' => (bool) $response->is_defect,
+                        'is_defect' => $response->isDefect(),
                         'note'      => $response->note,
                     ])->values(),
                 ];
