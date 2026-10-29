@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReadyRoute — Mobile App API Changes</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --ink: #1f2430;
+    --muted: #5b6472;
+    --line: #e4e8ef;
+    --brand: #4f46e5;
+    --brand-soft: #eef0fe;
+    --warn: #b45309;
+    --warn-soft: #fff5e6;
+    --warn-line: #f6d9a8;
+    --danger: #b42318;
+    --danger-soft: #fdeceb;
+    --ok: #067647;
+    --ok-soft: #e9f7ef;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+    --chip: #eef1f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --card: #171b22;
+      --ink: #e6e9ef;
+      --muted: #9aa4b2;
+      --line: #262c36;
+      --brand: #8b8cf6;
+      --brand-soft: #1d2030;
+      --warn: #f0b457;
+      --warn-soft: #2a2213;
+      --warn-line: #4a3b1c;
+      --danger: #f3a8a1;
+      --danger-soft: #2a1716;
+      --ok: #7bd7a8;
+      --ok-soft: #13271d;
+      --code-bg: #0b1020;
+      --code-ink: #dbe4f3;
+      --chip: #232a35;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 16px 80px; }
+  header.hero {
+    background: linear-gradient(135deg, var(--brand), #7c3aed);
+    color: #fff; border-radius: 16px; padding: 28px 26px; margin-bottom: 28px;
+  }
+  header.hero h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: .2px; }
+  header.hero p { margin: 0; opacity: .92; font-size: 15px; }
+  .tag { display: inline-block; background: rgba(255,255,255,.18); border-radius: 999px; padding: 3px 11px; font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+  section.card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px 22px; margin-bottom: 22px;
+  }
+  h2 { font-size: 19px; margin: 2px 0 4px; display: flex; align-items: center; gap: 10px; }
+  h2 .num { background: var(--brand); color: #fff; width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex: 0 0 auto; }
+  h3 { font-size: 15px; margin: 22px 0 8px; color: var(--ink); }
+  p.lead { color: var(--muted); margin-top: 4px; }
+  code.inline { background: var(--chip); padding: 2px 6px; border-radius: 6px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 13.5px; }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.55;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 4px; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .3px; }
+  td code, th code { font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 13px; }
+  .method { font-weight: 700; font-size: 12px; padding: 2px 8px; border-radius: 6px; }
+  .m-post { background: var(--ok-soft); color: var(--ok); }
+  .m-put  { background: var(--warn-soft); color: var(--warn); }
+  .m-get  { background: var(--brand-soft); color: var(--brand); }
+  .callout { border-radius: 10px; padding: 12px 14px; margin: 14px 0; font-size: 14.5px; border: 1px solid; }
+  .callout.warn { background: var(--warn-soft); border-color: var(--warn-line); color: var(--warn); }
+  .callout.ok { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+  .callout b { color: inherit; }
+  ol.flow { margin: 8px 0; padding-left: 22px; }
+  ol.flow li { margin: 6px 0; }
+  ul.check { list-style: none; padding: 0; margin: 6px 0; }
+  ul.check li { padding: 6px 0 6px 30px; position: relative; border-bottom: 1px solid var(--line); }
+  ul.check li:last-child { border-bottom: 0; }
+  ul.check li::before { content: "☐"; position: absolute; left: 4px; top: 6px; font-size: 16px; color: var(--muted); }
+  .pill { display:inline-block; background: var(--chip); border-radius: 6px; padding: 2px 8px; margin: 2px 4px 2px 0; font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 12.5px; }
+  .muted { color: var(--muted); }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
+  footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 30px; }
+  a { color: var(--brand); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="tag">BACKEND UPDATE · FOR MOBILE DEV</span>
+    <h1>ReadyRoute — Mobile App API Changes</h1>
+    <p>Two new backend behaviours the dispatcher mobile app must support: a double-booking warning when assigning a driver, and a required reason when cancelling a trip.</p>
+  </header>
+
+  <section class="card">
+    <h2>Before you start</h2>
+    <p class="lead">Nothing about auth or the base URL changes. Every endpoint below is the same Sanctum Bearer-token API you already use, and every response keeps the standard envelope:</p>
+    <pre>{ "status": true|false, "message": "…", "data": …, "errors": … }</pre>
+    <p class="muted">Only two flows change: <b>Assign Driver</b> and <b>Cancel Trip</b>. Read requests are unaffected.</p>
+  </section>
+
+  <!-- FEATURE 1 -->
+  <section class="card">
+    <h2><span class="num">1</span> Driver Assign — double-booking warning</h2>
+    <p class="lead">A driver should not be stacked onto two trips too close together. If the chosen driver already has another <b>active</b> trip (scheduled / en-route / in-progress — <i>not</i> completed or cancelled) whose pickup lands within <b>1 hour before → 2 hours after</b> this pickup, the server refuses with <b>HTTP 409</b> until you resend with <code class="inline">force: true</code>.</p>
+
+    <h3>Endpoints affected (same rule on all three)</h3>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th><th>New field</th></tr>
+      <tr><td><span class="method m-post">POST</span></td><td><code>/api/dispatcher/trips/{id}/assign</code></td><td><code>force</code> (bool, optional)</td></tr>
+      <tr><td><span class="method m-post">POST</span></td><td><code>/api/dispatcher/trips</code> <span class="muted">(create)</span></td><td><code>force</code> (bool, optional)</td></tr>
+      <tr><td><span class="method m-put">PUT</span></td><td><code>/api/dispatcher/trips/{id}</code> <span class="muted">(update)</span></td><td><code>force</code> (bool, optional)</td></tr>
+    </table>
+
+    <h3>409 response when there is a clash</h3>
+    <pre>{
+  "status": false,
+  "message": "Ali already has #41 (John Doe) at Nov 2, 1:30 PM — 1 hour before this pickup.",
+  "data": null,
+  "errors": {
+    "conflict": true,
+    "can_force": true,
+    "message": "Ali already has #41 (John Doe) at Nov 2, 1:30 PM — 1 hour before this pickup.",
+    "conflicts": [
+      {
+        "id": 41,
+        "reference": "#41",
+        "passenger": "John Doe",
+        "pickup_at": "2026-11-02T13:30:00+00:00",
+        "pickup_label": "Nov 2, 1:30 PM",
+        "relation": "1 hour before this pickup",
+        "status": "scheduled"
+      }
+    ]
+  }
+}</pre>
+
+    <h3>What the app should do</h3>
+    <ol class="flow">
+      <li>Call assign / create / update normally (no <code class="inline">force</code>).</li>
+      <li><b>200 / 201</b> → done, driver assigned.</li>
+      <li><b>409</b> → show a dialog using <code class="inline">errors.message</code> and the <code class="inline">errors.conflicts</code> list, with two buttons:
+        <ul>
+          <li><b>Force Assign</b> → resend the <i>same</i> request with <code class="inline">"force": true</code> → now returns 200.</li>
+          <li><b>Change Driver</b> → go back to the driver picker.</li>
+        </ul>
+      </li>
+    </ol>
+
+    <h3>Force retry example</h3>
+    <pre><span class="muted">POST /api/dispatcher/trips/88/assign</span>
+{ "driver_id": 12, "force": true }</pre>
+
+    <div class="callout warn">
+      <b>Keep separate from 422:</b> the existing "driver does not work on that day" error is still <b>HTTP 422</b> with the message under <code class="inline">errors.driver_id</code>. That is a hard stop (no force) — handle it the way you do today. Only <b>409</b> offers Force Assign.
+    </div>
+  </section>
+
+  <!-- FEATURE 2 -->
+  <section class="card">
+    <h2><span class="num">2</span> Trip Cancel — reason is now required</h2>
+    <p class="lead">A cancelled trip stays on the record, so cancelling must now carry a reason. The cancel endpoint rejects a request without one.</p>
+
+    <h3>Endpoint</h3>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th></tr>
+      <tr><td><span class="method m-post">POST</span></td><td><code>/api/dispatcher/trips/{id}/cancel</code></td></tr>
+    </table>
+
+    <h3>Request body</h3>
+    <table>
+      <tr><th>Field</th><th>Rules</th></tr>
+      <tr><td><code>cancellation_reason</code></td><td><b>required</b> — one of the values below</td></tr>
+      <tr><td><code>cancellation_note</code></td><td>string, max 500 — <b>required only when reason is <code>other</code></b></td></tr>
+    </table>
+
+    <h3>Reason values (exact)</h3>
+    <p>
+      <span class="pill">client_no_show</span>
+      <span class="pill">client_cancelled</span>
+      <span class="pill">driver_unavailable</span>
+      <span class="pill">vehicle_issue</span>
+      <span class="pill">weather_emergency</span>
+      <span class="pill">duplicate_trip</span>
+      <span class="pill">other</span>
+    </p>
+
+    <div class="callout ok">
+      <b>Do not hard-code the list.</b> Fetch it from <code class="inline">GET /api/dispatcher/trips/form-options</code>, which now returns a <code class="inline">cancellation_reasons</code> array. Show a text box whenever the selected option has <code class="inline">needs_note: true</code>.
+    </div>
+
+    <pre><span class="muted">GET /api/dispatcher/trips/form-options  →  data.cancellation_reasons</span>
+"cancellation_reasons": [
+  { "value": "client_no_show",    "label": "Client No-Show",      "needs_note": false },
+  { "value": "client_cancelled",  "label": "Client Cancelled",    "needs_note": false },
+  { "value": "driver_unavailable","label": "Driver Unavailable",  "needs_note": false },
+  { "value": "vehicle_issue",     "label": "Vehicle Issue",       "needs_note": false },
+  { "value": "weather_emergency", "label": "Weather / Emergency", "needs_note": false },
+  { "value": "duplicate_trip",    "label": "Duplicate Trip",      "needs_note": false },
+  { "value": "other",             "label": "Other",               "needs_note": true  }
+]</pre>
+
+    <h3>Cancel request examples</h3>
+    <pre><span class="muted">POST /api/dispatcher/trips/88/cancel</span>
+{ "cancellation_reason": "vehicle_issue" }
+
+<span class="muted">// "Other" must include a note:</span>
+{ "cancellation_reason": "other", "cancellation_note": "Road closed" }</pre>
+    <p class="muted"><b>200</b> → cancelled, updated trip returned in <code class="inline">data</code>. &nbsp; <b>422</b> → reason missing/invalid, show <code class="inline">errors</code>.</p>
+
+    <h3>Showing the reason on a cancelled trip</h3>
+    <p class="lead">Every trip object (TripResource) now includes these fields — display <code class="inline">cancellation_reason_label</code> on a cancelled trip's detail:</p>
+    <pre>"cancellation_reason":       "vehicle_issue",
+"cancellation_reason_label": "Vehicle Issue",   <span class="muted">// for "Other" → "Other: Road closed"</span>
+"cancellation_note":         null</pre>
+
+    <h3>What the app should do</h3>
+    <ol class="flow">
+      <li>On Cancel, show a reason picker (radio list from <code class="inline">form-options</code>) + a note box for the option whose <code class="inline">needs_note</code> is true.</li>
+      <li>POST to <code class="inline">/trips/{id}/cancel</code> with <code class="inline">cancellation_reason</code> (and <code class="inline">cancellation_note</code> for "Other").</li>
+      <li><b>200</b> → cancelled, refresh. <b>422</b> → show the validation message.</li>
+    </ol>
+  </section>
+
+  <!-- CHECKLIST -->
+  <section class="card">
+    <h2>Checklist</h2>
+    <ul class="check">
+      <li>Handle <b>409</b> on assign / create / update → "Force Assign" + "Change Driver" dialog; retry with <code class="inline">force: true</code>.</li>
+      <li>Keep the existing <b>422</b> availability error (driver's day off) as a hard stop — no force.</li>
+      <li>Cancel screen: reason radios from <code class="inline">form-options</code>, plus a note box for "Other".</li>
+      <li>Send <code class="inline">cancellation_reason</code> (+ <code class="inline">cancellation_note</code> for "Other") on cancel, or you get <b>422</b>.</li>
+      <li>Show <code class="inline">cancellation_reason_label</code> on cancelled-trip details.</li>
+    </ul>
+    <div class="callout warn" style="margin-top:16px">
+      <b>Backend note (not the app's job):</b> the server must have the new database migration applied. If you hit a 500 on cancel, the backend migration has not been run yet — tell the backend team.
+    </div>
+  </section>
+
+  <footer>
+    ReadyRoute · Dispatcher API · prepared for the mobile app developer
+  </footer>
+
+</div>
+</body>
+</html>
