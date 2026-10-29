@@ -290,6 +290,8 @@
   </div>
 </div>
 
+@include('content.dispatcher.trip._assign-conflict-modal')
+
 @endsection
 
 @section('page-script')
@@ -371,5 +373,85 @@ function openAssignModal(tripId, passengerName) {
   document.getElementById('assignDriverForm').action = "{{ url('dispatcher/trip/assign') }}/" + tripId;
   assignModal.show();
 }
+
+/*
+ * Assigning a driver from the dashboard.
+ *
+ * The form posts over AJAX so a double-booking can be answered in place: the
+ * server replies 409 with the clashing trips, and the dispatcher is offered
+ * "Force Assign" (retry past the time-gap limit) or "Change Driver" (back to
+ * the picker). A clean assignment just reloads, which is what the plain form
+ * post did before.
+ */
+(function () {
+  var form = document.getElementById('assignDriverForm');
+  var conflictModalEl = document.getElementById('assignConflictModal');
+  if (!form || !conflictModalEl || typeof bootstrap === 'undefined') return;
+
+  var conflictModal = bootstrap.Modal.getOrCreateInstance(conflictModalEl);
+  var tokenInput = form.querySelector('input[name="_token"]');
+
+  function submitAssign(force) {
+    var driver = form.querySelector('[name="driver_id"]');
+    if (!driver || !driver.value) return;
+
+    var body = new URLSearchParams();
+    body.set('driver_id', driver.value);
+    if (force) body.set('force', '1');
+
+    fetch(form.getAttribute('action'), {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': tokenInput ? tokenInput.value : '',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    }).then(function (res) {
+      if (res.status === 409) {
+        return res.json().then(function (data) {
+          assignModal.hide();
+          renderConflict(data);
+          conflictModal.show();
+        });
+      }
+      // Success, or a validation error whose flashed message shows on reload.
+      window.location.reload();
+    }).catch(function () { window.location.reload(); });
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    submitAssign(false);
+  });
+
+  function renderConflict(data) {
+    var msgEl  = document.getElementById('assignConflictMessage');
+    var listEl = document.getElementById('assignConflictList');
+    if (msgEl)  msgEl.textContent = data.message || 'This driver already has a trip near this time.';
+    if (listEl) {
+      listEl.innerHTML = '';
+      (data.conflicts || []).forEach(function (c) {
+        var li = document.createElement('li');
+        li.className = 'mb-1';
+        li.textContent = c.reference + ' — ' + c.passenger +
+          ' (' + (c.pickup_label || '') + ', ' + (c.relation || '') + ')';
+        listEl.appendChild(li);
+      });
+    }
+  }
+
+  var forceBtn = document.getElementById('assignConflictForceBtn');
+  if (forceBtn) forceBtn.addEventListener('click', function () {
+    conflictModal.hide();
+    submitAssign(true);
+  });
+
+  var changeBtn = document.getElementById('assignConflictChangeBtn');
+  if (changeBtn) changeBtn.addEventListener('click', function () {
+    conflictModal.hide();
+    assignModal.show();
+  });
+})();
 </script>
 @endsection

@@ -45,6 +45,9 @@ Route::prefix('dispatcher')->middleware(['auth', 'role:dispatcher,admin', 'subsc
     Route::delete('trip/delete/{id}', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'destroy'])->middleware('plan:trips')->middleware('permission:trips.delete')->name('dispatcher.trip.delete');
     Route::post('trip/{id}/tracking-link', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'trackingLink'])->whereNumber('id')->middleware('plan:trips')->middleware('permission:trips.edit')->name('dispatcher.trip.tracking-link');
     Route::post('trip/assign/{id}', [App\Http\Controllers\Web\Dispatcher\DashboardController::class, 'assignDriver'])->middleware('plan:trips')->middleware('permission:trips.assign')->name('dispatcher.trip.assign');
+    // Read-only pre-check behind the create/edit forms: "is this driver already
+    // booked near this time?" The actual rule is enforced on store/update.
+    Route::post('trip/assign-check', [App\Http\Controllers\Web\Dispatcher\TripController::class, 'assignCheck'])->middleware('plan:trips')->name('dispatcher.trip.assign-check');
     Route::get('live-map', [App\Http\Controllers\Web\Dispatcher\DashboardController::class, 'liveMap'])->middleware('plan:live_map')->middleware('permission:live_map.view')->name('dispatcher.live-map');
     Route::get('auto-dispatch', [App\Http\Controllers\Web\Dispatcher\AutoDispatchController::class, 'index'])->middleware('plan:auto_dispatch')->middleware('permission:auto_dispatch.run')->name('dispatcher.auto-dispatch');
     Route::post('auto-dispatch/optimize', [App\Http\Controllers\Web\Dispatcher\AutoDispatchController::class, 'optimize'])->middleware('plan:auto_dispatch')->middleware('permission:auto_dispatch.run')->name('dispatcher.auto-dispatch.optimize');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Web\Dispatcher;
 
+use App\Enums\CancellationReason;
 use App\Enums\TripStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Trip;
@@ -9,6 +10,7 @@ use App\Models\Client;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleInspection;
+use App\Services\DriverScheduleGuard;
 use App\Services\SignatureService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -83,6 +85,67 @@ class TripController extends Controller
         }
     }
 
+    /**
+     * Tell the create / edit forms whether the chosen driver is already booked
+     * near this pickup, before the form is submitted.
+     *
+     * The form asks this as the dispatcher presses Save. A clash opens the same
+     * "Force Assign / Change Driver" dialog the dashboard uses; a clear answer
+     * lets the save go straight through. It only reports — the store / update
+     * methods are what actually enforce the rule.
+     */
+    public function assignCheck(Request $request, DriverScheduleGuard $guard)
+    {
+        $companyId = auth()->user()->companyId();
+
+        $data = $request->validate([
+            'driver_id' => ['nullable', Rule::exists('users', 'id')
+                ->where('role', 'driver')
+                ->where('dispatcher_id', $companyId)],
+            'pickup_date'     => ['nullable', 'date'],
+            'pickup_time'     => ['nullable'],
+            'exclude_trip_id' => ['nullable', 'integer'],
+        ]);
+
+        $pickupAt = $guard->pickupAt($data['pickup_date'] ?? null, $data['pickup_time'] ?? null);
+
+        if (! $request->filled('driver_id') || ! $pickupAt) {
+            return response()->json(['conflict' => false, 'can_force' => true, 'message' => '', 'conflicts' => []]);
+        }
+
+        $conflicts = $guard->conflicts(
+            $companyId,
+            (int) $data['driver_id'],
+            $pickupAt,
+            $request->filled('exclude_trip_id') ? (int) $data['exclude_trip_id'] : null
+        );
+
+        return response()->json($guard->payload($conflicts, $pickupAt));
+    }
+
+    /**
+     * The clash message a form submission would create, or null when the slot
+     * is clear, the dispatcher forced it through, or there is no driver to
+     * check. Shared by store and update so the rule reads the same on both.
+     */
+    private function scheduleConflict(Request $request, DriverScheduleGuard $guard, ?int $excludeTripId): ?string
+    {
+        if (! $request->filled('driver_id') || $request->boolean('force_assign')) {
+            return null;
+        }
+
+        $pickupAt = $guard->pickupAt($request->input('pickup_date'), $request->input('pickup_time'));
+
+        $conflicts = $guard->conflicts(
+            auth()->user()->companyId(),
+            (int) $request->input('driver_id'),
+            $pickupAt,
+            $excludeTripId
+        );
+
+        return $conflicts->isEmpty() ? null : $guard->message($conflicts, $pickupAt);
+    }
+
     public function create()
     {
         $dispatcherId = auth()->user()->companyId();
@@ -95,7 +158,7 @@ class TripController extends Controller
         return view('content.dispatcher.trip.create', compact('clients', 'drivers', 'vehicles'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, DriverScheduleGuard $guard)
     {
         $validatedData = $request->validate([
             'client_id' => 'nullable|exists:clients,id',
@@ -170,6 +233,12 @@ class TripController extends Controller
                         . $chosen->availabilityLabel() . '.',
                 ]);
             }
+        }
+
+        // Warn before stacking this driver onto another trip too close in time,
+        // unless the dispatcher ticked force through the confirm dialog.
+        if ($conflict = $this->scheduleConflict($request, $guard, null)) {
+            return back()->withInput()->withErrors(['driver_id' => $conflict]);
         }
 
         $validatedData['dispatcher_id'] = auth()->user()->companyId();
@@ -372,7 +441,7 @@ class TripController extends Controller
         return view('content.dispatcher.trip.edit', compact('trip', 'clients', 'drivers', 'vehicles'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $id, DriverScheduleGuard $guard)
     {
         $dispatcherId = auth()->user()->companyId();
         $trip = Trip::where('dispatcher_id', $dispatcherId)->findOrFail($id);
@@ -453,6 +522,12 @@ class TripController extends Controller
             }
         }
 
+        // The trip itself is excluded, so moving its time without changing the
+        // driver never reads as a clash with its own row.
+        if ($conflict = $this->scheduleConflict($request, $guard, $trip->id)) {
+            return back()->withInput()->withErrors(['driver_id' => $conflict]);
+        }
+
         $trip->update($validatedData);
 
         return redirect()->route('dispatcher.trip.details', $trip->id)->with('success', 'Trip updated successfully!');
@@ -483,7 +558,7 @@ class TripController extends Controller
      * The trip is kept and marked cancelled instead, which also gives the
      * driver something to be notified about.
      */
-    public function cancel($id)
+    public function cancel(Request $request, $id)
     {
         $trip = Trip::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
 
@@ -496,9 +571,23 @@ class TripController extends Controller
             );
         }
 
+        // A reason is required so the cancelled trip carries why it was called
+        // off. "Other" must say what it was, in the note.
+        $data = $request->validate([
+            'cancellation_reason' => ['required', Rule::in(CancellationReason::values())],
+            'cancellation_note'   => [
+                'nullable', 'string', 'max:500',
+                Rule::requiredIf($request->input('cancellation_reason') === CancellationReason::Other->value),
+            ],
+        ]);
+
         // The driver is told by the trip observer, which watches the status
         // rather than this one action.
-        $trip->update(['status' => TripStatus::Cancelled->value]);
+        $trip->update([
+            'status'              => TripStatus::Cancelled->value,
+            'cancellation_reason' => $data['cancellation_reason'],
+            'cancellation_note'   => $data['cancellation_note'] ?? null,
+        ]);
 
         $message = $trip->driver_id
             ? 'Trip cancelled. ' . ($trip->driver?->name ?: 'The driver') . ' has been notified.'

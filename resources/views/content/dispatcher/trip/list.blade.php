@@ -139,13 +139,10 @@
                    the board. A finished or already cancelled trip has nothing
                    left to cancel, so the control is simply not offered. --}}
               @if(! $tripStatus?->isTerminal() && auth()->user()->hasPermission('trips.cancel'))
-                <form action="{{ route('dispatcher.trip.cancel', $trip->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Cancel this trip? It stays on the record and the assigned driver is notified.');">
-                  @csrf
-                  @method('PATCH')
-                  <button type="submit" class="btn btn-icon btn-sm btn-label-warning" title="Cancel Trip">
-                    <i class="ti tabler-ban"></i>
-                  </button>
-                </form>
+                <button type="button" class="btn btn-icon btn-sm btn-label-warning" title="Cancel Trip"
+                        onclick="openCancelModal('{{ route('dispatcher.trip.cancel', $trip->id) }}', '{{ $trip->reference() }}')">
+                  <i class="ti tabler-ban"></i>
+                </button>
               @endif
 
               {{-- Delete takes the trip off the panel altogether, for one that
@@ -187,5 +184,7 @@
   </div>
   @endif
 </div>
+
+@include('content.dispatcher.trip._cancel-reason-modal')
 
 @endsection

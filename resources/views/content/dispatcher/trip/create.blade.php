@@ -33,6 +33,9 @@
 
 <form method="POST" action="{{ route('dispatcher.trip.store') }}" id="createTripForm">
   @csrf
+  {{-- Set to 1 by the double-booking dialog's "Force Assign", which tells the
+       server to save past the time-gap warning. --}}
+  <input type="hidden" name="force_assign" id="force_assign" value="0">
 
   {{-- Top Header Bar --}}
   <div class="d-flex justify-content-between align-items-center mb-5">
@@ -302,6 +305,8 @@
   </div>
 
 </form>
+
+@include('content.dispatcher.trip._assign-conflict-modal')
 
 @endsection
 
@@ -652,4 +657,6 @@ document.addEventListener('DOMContentLoaded', function() {
   updatePreview();
 });
 </script>
+
+@include('content.dispatcher.trip._assign-conflict-script')
 @endsection

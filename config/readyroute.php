@@ -18,6 +18,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Driver Assignment Spacing
+    |--------------------------------------------------------------------------
+    |
+    | A driver should not be stacked onto two trips that sit on top of each
+    | other. When one is assigned, the panel warns if the driver already has
+    | another ACTIVE trip (completed and cancelled trips never count) whose
+    | pickup lands inside this window around the new pickup. The dispatcher can
+    | still force the assignment through; these values only decide when the
+    | warning appears.
+    |
+    | The window is intentionally asymmetric: a little room is needed before a
+    | pickup to arrive, and more room after to run the trip and come back.
+    |
+    */
+
+    'assignment' => [
+        'gap_before_minutes' => env('READYROUTE_ASSIGN_GAP_BEFORE', 60),
+        'gap_after_minutes'  => env('READYROUTE_ASSIGN_GAP_AFTER', 120),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Distance & ETA Provider
     |--------------------------------------------------------------------------
     |

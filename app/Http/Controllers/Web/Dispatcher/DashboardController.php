@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Web\Dispatcher;
 
 use App\Http\Controllers\Controller;
+use App\Services\DriverScheduleGuard;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 use App\Models\Trip;
 use App\Models\User;
@@ -77,17 +79,71 @@ class DashboardController extends Controller
         ));
     }
 
-    public function assignDriver(Request $request, $id)
+    public function assignDriver(Request $request, $id, DriverScheduleGuard $guard)
     {
+        $companyId = auth()->user()->companyId();
+
         $request->validate([
-            'driver_id' => 'required|exists:users,id',
+            // Scoped to this company and to drivers: a bare exists rule would let
+            // one company put another's driver — or a non-driver — on a trip.
+            'driver_id' => ['required', Rule::exists('users', 'id')
+                ->where('role', 'driver')
+                ->where('dispatcher_id', $companyId)],
+            'force' => ['nullable', 'boolean'],
         ]);
 
-        $trip = Trip::where('dispatcher_id', auth()->user()->companyId())->findOrFail($id);
-        $trip->driver_id = $request->driver_id;
-        $trip->save();
+        $trip = Trip::where('dispatcher_id', $companyId)->findOrFail($id);
+
+        /*
+         * Unless the dispatcher has chosen to force it, refuse an assignment
+         * that stacks this driver onto another trip too close in time. The panel
+         * answers a 409 by offering "Force Assign" or "Change Driver"; a plain
+         * form post (no JS) falls back to a flashed error.
+         */
+        if (! $request->boolean('force')) {
+            $conflicts = $guard->conflicts(
+                $companyId,
+                (int) $request->input('driver_id'),
+                $trip->scheduledPickupAt(),
+                $trip->id
+            );
+
+            if ($conflicts->isNotEmpty()) {
+                $payload = $guard->payload($conflicts, $trip->scheduledPickupAt());
+
+                if ($request->expectsJson()) {
+                    return response()->json($payload, 409);
+                }
+
+                return redirect()->back()->withErrors(['driver_id' => $payload['message']]);
+            }
+        }
+
+        // The vehicle comes from whoever is driving, as everywhere else a driver
+        // is set — so assigning from the dashboard never leaves the trip without
+        // the vehicle it will actually run in.
+        $trip->update([
+            'driver_id'  => $request->input('driver_id'),
+            'vehicle_id' => $this->vehicleForDriver($companyId, $request->input('driver_id')),
+        ]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true, 'message' => 'Driver assigned successfully!']);
+        }
 
         return redirect()->back()->with('success', 'Driver assigned successfully!');
+    }
+
+    /**
+     * The vehicle a driver runs, taken from the driver rather than any input.
+     */
+    private function vehicleForDriver(int $companyId, mixed $driverId): ?int
+    {
+        if (blank($driverId)) {
+            return null;
+        }
+
+        return User::driversOf($companyId)->whereKey($driverId)->first()?->assignedVehicle?->id;
     }
 
     public function liveMap()

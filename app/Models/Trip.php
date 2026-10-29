@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CancellationReason;
 use App\Enums\ConfirmationStatus;
 use App\Enums\TripStatus;
 use App\Observers\TripObserver;
@@ -53,6 +54,8 @@ class Trip extends Model
         'arrived_dropoff_at',
         'completed_at',
         'cancelled_at',
+        'cancellation_reason',
+        'cancellation_note',
         'actual_distance',
         'actual_duration_min',
         'was_on_time',
@@ -68,6 +71,7 @@ class Trip extends Model
         'req_bariatric' => 'boolean',
         'req_no_steps' => 'boolean',
         'status' => TripStatus::class,
+        'cancellation_reason' => CancellationReason::class,
         'confirmation_status' => ConfirmationStatus::class,
         'confirmed_at' => 'datetime',
         'en_route_at' => 'datetime',
@@ -249,6 +253,32 @@ class Trip extends Model
     public function isCancelled(): bool
     {
         return $this->isStatus(TripStatus::Cancelled);
+    }
+
+    /**
+     * The human reason this trip was cancelled, including the free-text note
+     * when one was given. Null when the trip is not cancelled, or when it was
+     * cancelled before a reason was ever recorded.
+     */
+    public function cancellationReasonLabel(): ?string
+    {
+        $reason = $this->cancellation_reason;
+
+        if (! $reason) {
+            return null;
+        }
+
+        $label = $reason instanceof CancellationReason
+            ? $reason->label()
+            : (CancellationReason::tryFrom($reason)?->label() ?? $reason);
+
+        // The free text only adds anything on "Other", where the label alone
+        // says nothing; elsewhere it would just repeat the choice.
+        if ($reason === CancellationReason::Other && filled($this->cancellation_note)) {
+            $label .= ': ' . $this->cancellation_note;
+        }
+
+        return $label;
     }
 
     /**

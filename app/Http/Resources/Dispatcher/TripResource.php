@@ -33,6 +33,11 @@ class TripResource extends JsonResource
             'is_cancelled' => $this->isCancelled(),
             'is_finished'  => (bool) $status?->isTerminal(),
             'cancelled_at' => optional($this->cancelled_at)->toIso8601String(),
+            'cancellation_reason'       => $this->cancellation_reason instanceof \BackedEnum
+                ? $this->cancellation_reason->value
+                : $this->cancellation_reason,
+            'cancellation_reason_label' => $this->cancellationReasonLabel(),
+            'cancellation_note'         => $this->cancellation_note,
             'updated_at'   => optional($this->updated_at)->toIso8601String(),
 
             // A cancelled or finished trip is read-only; the app greys the

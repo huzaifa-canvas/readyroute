@@ -28,6 +28,9 @@
 <form action="{{ route('dispatcher.trip.update', $trip->id) }}" method="POST" id="editTripForm">
   @csrf
   @method('PUT')
+  {{-- Set to 1 by the double-booking dialog's "Force Assign", which tells the
+       server to save past the time-gap warning. --}}
+  <input type="hidden" name="force_assign" id="force_assign" value="0">
 
   <div class="row g-4">
     {{-- Left Column: Main Form Inputs --}}
@@ -235,6 +238,8 @@
     </div>
   </div>
 </form>
+
+@include('content.dispatcher.trip._assign-conflict-modal')
 
 @endsection
 
@@ -491,4 +496,6 @@ document.addEventListener('DOMContentLoaded', function() {
   initAddressAutocomplete('dropoff_address', 'dropoff_lat', 'dropoff_lng', 'dropoff_suggestions');
 });
 </script>
+
+@include('content.dispatcher.trip._assign-conflict-script')
 @endsection

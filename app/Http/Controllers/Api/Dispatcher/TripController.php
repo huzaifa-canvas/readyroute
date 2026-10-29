@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api\Dispatcher;
 
+use App\Enums\CancellationReason;
 use App\Enums\TripStatus;
 use App\Http\Resources\Dispatcher\TripListResource;
 use App\Http\Resources\Dispatcher\TripResource;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\VehicleInspection;
+use App\Services\DriverScheduleGuard;
 use App\Services\SignatureService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -113,15 +115,27 @@ class TripController extends BaseDispatcherController
                 'value' => $case->value,
                 'label' => $case->label(),
             ]),
+
+            // The reasons the cancel dialog offers; "needs_note" is the one the
+            // app shows a free-text box for.
+            'cancellation_reasons' => collect(CancellationReason::cases())->map(fn ($case) => [
+                'value'      => $case->value,
+                'label'      => $case->label(),
+                'needs_note' => $case->needsNote(),
+            ]),
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, DriverScheduleGuard $guard): JsonResponse
     {
         $data = $request->validate($this->rules());
 
         if ($error = $this->availabilityError($request)) {
             return $this->fail($error, 422, ['driver_id' => [$error]]);
+        }
+
+        if ($clash = $this->scheduleClash($request, $guard, null)) {
+            return $this->fail($clash['message'], 409, $clash['payload']);
         }
 
         $data = $this->withFlags($request, $data);
@@ -187,7 +201,7 @@ class TripController extends BaseDispatcherController
         return $this->ok(new TripResource($trip, $inspection, $signatureUrl));
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, int $id, DriverScheduleGuard $guard): JsonResponse
     {
         $trip = $this->trips()->find($id);
 
@@ -202,6 +216,12 @@ class TripController extends BaseDispatcherController
 
         if ($error = $this->availabilityError($request)) {
             return $this->fail($error, 422, ['driver_id' => [$error]]);
+        }
+
+        // The trip excludes itself, so re-timing it without changing the driver
+        // never clashes with its own row.
+        if ($clash = $this->scheduleClash($request, $guard, $trip->id)) {
+            return $this->fail($clash['message'], 409, $clash['payload']);
         }
 
         $data = $this->withFlags($request, $data);
@@ -221,7 +241,7 @@ class TripController extends BaseDispatcherController
      * The Trip Assignment screen is one picker and a button, so it has its own
      * endpoint rather than sending the whole trip back.
      */
-    public function assign(Request $request, int $id): JsonResponse
+    public function assign(Request $request, int $id, DriverScheduleGuard $guard): JsonResponse
     {
         $trip = $this->trips()->find($id);
 
@@ -231,10 +251,26 @@ class TripController extends BaseDispatcherController
 
         $request->validate([
             'driver_id' => ['nullable', $this->driverRule()],
+            'force'     => ['nullable', 'boolean'],
         ]);
 
         if ($error = $this->availabilityError($request, $trip->pickup_date)) {
             return $this->fail($error, 422, ['driver_id' => [$error]]);
+        }
+
+        /*
+         * Unless forced, refuse to stack this driver onto another trip too close
+         * in time. The 409 carries can_force and the clashing trips, so the app
+         * can offer "Force Assign / Change Driver" and retry with force=true.
+         * The pickup comes from the trip itself — assignment does not re-time it.
+         */
+        if ($request->filled('driver_id') && ! $request->boolean('force')) {
+            $pickupAt  = $trip->scheduledPickupAt();
+            $conflicts = $guard->conflicts($this->companyId(), (int) $request->input('driver_id'), $pickupAt, $trip->id);
+
+            if ($conflicts->isNotEmpty()) {
+                return $this->fail($guard->message($conflicts, $pickupAt), 409, $guard->payload($conflicts, $pickupAt));
+            }
         }
 
         $trip->update([
@@ -258,7 +294,7 @@ class TripController extends BaseDispatcherController
      * The run stays on the board and in the driver's list, marked cancelled
      * and read-only, so nobody is left guessing why work disappeared.
      */
-    public function cancel(int $id): JsonResponse
+    public function cancel(Request $request, int $id): JsonResponse
     {
         $trip = $this->trips()->find($id);
 
@@ -275,7 +311,21 @@ class TripController extends BaseDispatcherController
             );
         }
 
-        $trip->update(['status' => TripStatus::Cancelled->value]);
+        // A reason is required, the same as the panel: the cancelled trip has to
+        // carry why it was called off. "Other" must say what it was, in the note.
+        $data = $request->validate([
+            'cancellation_reason' => ['required', Rule::in(CancellationReason::values())],
+            'cancellation_note'   => [
+                'nullable', 'string', 'max:500',
+                Rule::requiredIf($request->input('cancellation_reason') === CancellationReason::Other->value),
+            ],
+        ]);
+
+        $trip->update([
+            'status'              => TripStatus::Cancelled->value,
+            'cancellation_reason' => $data['cancellation_reason'],
+            'cancellation_note'   => $data['cancellation_note'] ?? null,
+        ]);
 
         return $this->ok(
             new TripResource($trip->fresh()->load(['client', 'driver', 'vehicle', 'statusLogs'])),
@@ -405,6 +455,33 @@ class TripController extends BaseDispatcherController
         }
 
         return $this->drivers()->whereKey($driverId)->first()?->assignedVehicle?->id;
+    }
+
+    /**
+     * The double-booking clash a store / update would create, as a message and
+     * the payload the 409 carries, or null when the slot is clear, the request
+     * forced it through, or there is no driver to check. The pickup is read
+     * from the request, which is where create and edit carry the new time.
+     *
+     * @return array{message: string, payload: array<string, mixed>}|null
+     */
+    private function scheduleClash(Request $request, DriverScheduleGuard $guard, ?int $excludeTripId): ?array
+    {
+        if (! $request->filled('driver_id') || $request->boolean('force')) {
+            return null;
+        }
+
+        $pickupAt  = $guard->pickupAt($request->input('pickup_date'), $request->input('pickup_time'));
+        $conflicts = $guard->conflicts($this->companyId(), (int) $request->input('driver_id'), $pickupAt, $excludeTripId);
+
+        if ($conflicts->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'message' => $guard->message($conflicts, $pickupAt),
+            'payload' => $guard->payload($conflicts, $pickupAt),
+        ];
     }
 
     /**
